@@ -119,13 +119,20 @@ SOFTWARE.
 	}																							\
 }
 
-#define DOT_PRODUCT_FORWARD(input,output,weight,bias,action)				\
-{																			\
-	for (int x = 0; x < GETLENGTH(weight); ++x)								\
-		for (int y = 0; y < GETLENGTH(*weight); ++y)						\
-			((double *)output)[y] += ((double *)input)[x] * weight[x][y];	\
-	FOREACH(j, GETLENGTH(bias))												\
-		((double *)output)[j] = action(((double *)output)[j] + bias[j]);	\
+#define DOT_PRODUCT_FORWARD(input, output, weight, bias)
+{
+	for (int x = 0; x < GETLENGTH(weight); ++x)
+    {
+		for (int y = 0; y < GETLENGTH(*weight); ++y)
+        {						\
+			((double *)output)[y] += ((double *)input)[x] * weight[x][y];
+        }
+    }
+	FOREACH(j, GETLENGTH(bias))	
+    {
+        double x = ((double *)output)[j] + bias[j];
+		((double *)output)[j] = relu(x);
+    }
 }
 
 #define DOT_PRODUCT_BACKWARD(input,inerror,outerror,weight,wd,bd,actiongrad)	\
@@ -142,10 +149,15 @@ SOFTWARE.
 			wd[x][y] += ((double *)input)[x] * ((double *)outerror)[y];			\
 }
 
-double relu(double x)
+#define relu(x)
 {
-	return x*(x > 0);
+    x * (x > 0);
 }
+
+// double relu(double x)
+// {
+// 	return x*(x > 0);
+// }
 
 double relugrad(double y)
 {
