@@ -287,7 +287,23 @@ static double f64rand()
 
 __global__ void forwardKernel(LeNet5* lenet, Feature* featureArray)
 {
+    
+    if (blockIdx.z <= 6)
+    {
+        CONVOLUTION_FORWARD(features->input, features->layer1, lenet->weight0_1, lenet->bias0_1);
+        if (threadIdx.x > 14 && threadIdx.y > 14)
+        {
+            return;
+        }
 
+        SUBSAMP_MAX_FORWARD(features->layer1, features->layer2);
+    }
+    __syncglobaldevice();
+
+	CONVOLUTION_FORWARD(features->layer2, features->layer3, lenet->weight2_3, lenet->bias2_3);
+	SUBSAMP_MAX_FORWARD(features->layer3, features->layer4);
+	CONVOLUTION_FORWARD(features->layer4, features->layer5, lenet->weight4_5, lenet->bias4_5);
+	DOT_PRODUCT_FORWARD(features->layer5, features->output, lenet->weight5_6, lenet->bias5_6);
     return;
 }
 

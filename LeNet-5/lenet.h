@@ -53,10 +53,10 @@ typedef uint8 image[28][28];
 
 typedef struct LeNet5
 {
-	double weight0_1[INPUT][LAYER1][LENGTH_KERNEL][LENGTH_KERNEL];
-	double weight2_3[LAYER2][LAYER3][LENGTH_KERNEL][LENGTH_KERNEL];
-	double weight4_5[LAYER4][LAYER5][LENGTH_KERNEL][LENGTH_KERNEL];
-	double weight5_6[LAYER5 * LENGTH_FEATURE5 * LENGTH_FEATURE5][OUTPUT];
+	double weight0_1[INPUT][LAYER1][LENGTH_KERNEL][LENGTH_KERNEL]; 			// 1 * 6 * 5 * 5 = 150
+	double weight2_3[LAYER2][LAYER3][LENGTH_KERNEL][LENGTH_KERNEL]; 		// 6 * 16 * 5 * 5 = 2 400
+	double weight4_5[LAYER4][LAYER5][LENGTH_KERNEL][LENGTH_KERNEL]; 		// 16 * 120 * 5 * 5 = 48 000
+	double weight5_6[LAYER5 * LENGTH_FEATURE5 * LENGTH_FEATURE5][OUTPUT];	// 120 * 1 * 1 * 10 = 1 200
 
 	double bias0_1[LAYER1];
 	double bias2_3[LAYER3];
