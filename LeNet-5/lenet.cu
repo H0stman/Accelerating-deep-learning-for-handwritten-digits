@@ -27,6 +27,7 @@ SOFTWARE.
 #include <time.h>
 #include <stdlib.h>
 #include <math.h>
+#include <stdio.h>
 
 #define GETLENGTH(array) (sizeof(array)/sizeof(*(array)))
 
@@ -324,7 +325,7 @@ void TrainBatch(LeNet5* lenet, image* inputs, uint8* labels, int batchSize)
 	
     LeNet5* deviceLenet;
     cudaMalloc((void**)&deviceLenet, sizeof(LeNet5));
-    cudaMemcpy(deviceLenet, lenet, sizeof(leNet5), cudaMemcpyHostToDevice);
+    cudaMemcpy(deviceLenet, lenet, sizeof(LeNet5), cudaMemcpyHostToDevice);
     Feature* deviceFeatureArray;
     cudaMalloc((void**)&deviceFeatureArray, sizeof(Feature) * batchSize);
     cudaMemcpy(deviceFeatureArray, featureArray, sizeof(Feature) * batchSize, cudaMemcpyHostToDevice);
