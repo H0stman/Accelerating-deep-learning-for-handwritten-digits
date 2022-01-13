@@ -53,14 +53,14 @@ SOFTWARE.
 }
 
 // Similar functionality as the code in Figure 16.4 of the textbook
-#define CONVOLUTION_FORWARD(input,output,weight,bias,action)					\
-{																				\
-	for (int x = 0; x < GETLENGTH(weight); ++x)									\
-		for (int y = 0; y < GETLENGTH(*weight); ++y)							\
-			CONVOLUTE_VALID(input[x], output[y], weight[x][y]);					\
-	FOREACH(j, GETLENGTH(output))												\
-		FOREACH(i, GETCOUNT(output[j]))											\
-		((double *)output[j])[i] = action(((double *)output[j])[i] + bias[j]);	\
+#define CONVOLUTION_FORWARD(input, output, weight, bias, action)
+{
+	for (int x = 0; x < GETLENGTH(weight); ++x)
+		for (int y = 0; y < GETLENGTH(*weight); ++y)
+			CONVOLUTE_VALID(input[x], output[y], weight[x][y]);
+	FOREACH(j, GETLENGTH(output))
+		FOREACH(i, GETCOUNT(output[j]))
+		((double *)output[j])[i] = action(((double *)output[j])[i] + bias[j]);
 }
 
 #define CONVOLUTION_BACKWARD(input,inerror,outerror,weight,wd,bd,actiongrad)\
@@ -79,24 +79,30 @@ SOFTWARE.
 }
 
 // Similar functionality as the code in Figure 16.5 of the textbook
-#define SUBSAMP_MAX_FORWARD(input,output)														\
-{																								\
-	const int len0 = GETLENGTH(*(input)) / GETLENGTH(*(output));								\
-	const int len1 = GETLENGTH(**(input)) / GETLENGTH(**(output));								\
-	FOREACH(i, GETLENGTH(output))																\
-	FOREACH(o0, GETLENGTH(*(output)))															\
-	FOREACH(o1, GETLENGTH(**(output)))															\
-	{																							\
-		int x0 = 0, x1 = 0, ismax;																\
-		FOREACH(l0, len0)																		\
-			FOREACH(l1, len1)																	\
-		{																						\
-			ismax = input[i][o0*len0 + l0][o1*len1 + l1] > input[i][o0*len0 + x0][o1*len1 + x1];\
-			x0 += ismax * (l0 - x0);															\
-			x1 += ismax * (l1 - x1);															\
-		}																						\
-		output[i][o0][o1] = input[i][o0*len0 + x0][o1*len1 + x1];								\
-	}																							\
+#define SUBSAMP_MAX_FORWARD(input, output)
+{
+	const int len0 = GETLENGTH(*input) / GETLENGTH(*output);
+	const int len1 = GETLENGTH(**input) / GETLENGTH(**output);
+	FOREACH(i, GETLENGTH(output))
+    {
+	    FOREACH(o0, GETLENGTH(*output))
+        {
+	        FOREACH(o1, GETLENGTH(**output))
+	        {
+		        int x0 = 0, x1 = 0, ismax;
+		        FOREACH(l0, len0)
+                {
+			        FOREACH(l1, len1)
+		            {
+			            ismax = input[i][o0*len0 + l0][o1*len1 + l1] > input[i][o0*len0 + x0][o1*len1 + x1];
+			            x0 += ismax * (l0 - x0);
+			            x1 += ismax * (l1 - x1);
+		            }
+                }
+		        output[i][o0][o1] = input[i][o0 * len0 + x0][o1 * len1 + x1];
+	        }
+        }
+    }
 }
 
 #define SUBSAMP_MAX_BACKWARD(input,inerror,outerror)											\
@@ -125,13 +131,13 @@ SOFTWARE.
     {
 		for (int y = 0; y < GETLENGTH(*weight); ++y)
         {						\
-			((double *)output)[y] += ((double *)input)[x] * weight[x][y];
+			((double*)output)[y] += ((double*)input)[x] * weight[x][y];
         }
     }
 	FOREACH(j, GETLENGTH(bias))	
     {
-        double x = ((double *)output)[j] + bias[j];
-		((double *)output)[j] = relu(x);
+        double x = ((double*)output)[j] + bias[j];
+		((double*)output)[j] = relu(x);
     }
 }
 
