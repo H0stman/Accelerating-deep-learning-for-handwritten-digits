@@ -3,7 +3,7 @@
 INCLUDES = LeNet-5\\
 BUILD = Build\\
 BIN = LeNet-5\\x64\\Debug\\
-DEBUG = x64\Debug\\
+DEBUG = x64\\Debug\\
 EXECUTABLE = $(BIN)LeNet-5.exe
 SOURCE = LeNet-5\\
 CC = nvcc
@@ -14,7 +14,7 @@ LIBS =
 
 ## Builds an optimized release build of the project.
 debugcuda:
-   $(CC) $(SOURCE)lenet.cu $(CFLAGS) $(LIBS) -g -D"DEBUG" -o NNet.exe
+   $(CC) $(SOURCE)main.cu $(SOURCE)lenet.cu $(CFLAGS) $(LIBS) -g -D"DEBUG" -o NNet.exe
    @echo Build complete!
 
 debugseq:
