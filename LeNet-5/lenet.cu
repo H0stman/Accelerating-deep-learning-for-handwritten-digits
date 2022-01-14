@@ -325,21 +325,28 @@ void TrainBatch(
 	uint8* labels,
 	int batchSize,
 	LeNet5* deviceLenet,
-	double*** deviceInput,
-	double*** deviceLayer1,
-	double*** deviceLayer2,
-	double*** deviceLayer3,
-	double*** deviceLayer4,
-	double*** deviceLayer5,
-	double* deviceOutput
+	double**** deviceInput,
+	double**** deviceLayer1,
+	double**** deviceLayer2,
+	double**** deviceLayer3,
+	double**** deviceLayer4,
+	double**** deviceLayer5,
+	double** deviceOutput
 )
 {
 	//Set the allocated memory to 0 in the host & device.
-	//Normal lenet  and inputs are NOT set to 0 as they are our input.
+	//Normal lenet and inputs are NOT set to 0 as they are our input.
 	memset(featureArray, 0, sizeof(Feature) * batchSize);
-	cudaMemset(deviceFeatureArray, 0, sizeof(Feature) * batchSize);
+
 	cudaMemset(deviceLenet, 0, sizeof(LeNet5));
 
+	cudaMemset(deviceInput, 0,  sizeof(double) * INPUT * LENGTH_FEATURE0 * LENGTH_FEATURE0 * batchSize);
+	cudaMemset(deviceLayer1, 0,  sizeof(double) * LAYER1 * LENGTH_FEATURE1 * LENGTH_FEATURE1 * batchSize);
+	cudaMemset(deviceLayer2, 0,  sizeof(double) * LAYER2 * LENGTH_FEATURE2 * LENGTH_FEATURE2 * batchSize);
+	cudaMemset(deviceLayer3, 0,  sizeof(double) * LAYER3 * LENGTH_FEATURE3 * LENGTH_FEATURE3 * batchSize);
+	cudaMemset(deviceLayer4, 0,  sizeof(double) * LAYER4 * LENGTH_FEATURE4 * LENGTH_FEATURE4 * batchSize);
+	cudaMemset(deviceLayer5, 0,  sizeof(double) * LAYER5 * LENGTH_FEATURE5 * LENGTH_FEATURE5 * batchSize);
+	cudaMemset(deviceOutput, 0,  sizeof(double) * OUTPUT * batchSize);
 	//x = nothing since only one block is used "per picture"
 	//y = the current block's position FOR THIS PICTURE. (After sampling the input picture multiple "small" pictures are created, this indicates the index.)
     //z = What picture this is. Goes from 0-batchSize.
@@ -350,15 +357,27 @@ void TrainBatch(
 	for (i = 0; i < batchSize; ++i)
 	{
 		load_input(&(featureArray[i]), inputs[i]);
+		cudaMemcpy(deviceInput[i], featureArray[i]->input, sizeof(double) * INPUT * LENGTH_FEATURE0 * LENGTH_FEATURE0, cudaMemcpyHostToDevice);
+		cudaMemcpy(deviceLayer1[i], featureArray[i]->layer1, sizeof(double) * LAYER1 * LENGTH_FEATURE1 * LENGTH_FEATURE1, cudaMemcpyHostToDevice);
+		cudaMemcpy(deviceLayer2[i], featureArray[i]->layer2, sizeof(double) * LAYER2 * LENGTH_FEATURE2 * LENGTH_FEATURE2, cudaMemcpyHostToDevice);
+		cudaMemcpy(deviceLayer3[i], featureArray[i]->layer3, sizeof(double) * LAYER3 * LENGTH_FEATURE3 * LENGTH_FEATURE3, cudaMemcpyHostToDevice);
+		cudaMemcpy(deviceLayer4[i], featureArray[i]->layer4, sizeof(double) * LAYER4 * LENGTH_FEATURE4 * LENGTH_FEATURE4, cudaMemcpyHostToDevice);
+		cudaMemcpy(deviceLayer5[i], featureArray[i]->layer5, sizeof(double) * LAYER5 * LENGTH_FEATURE5 * LENGTH_FEATURE5, cudaMemcpyHostToDevice);
+		cudaMemcpy(deviceOutput[i], featureArray[i]->output, sizeof(double) * OUTPUT, cudaMemcpyHostToDevice);
     }
 	
 	//Copy the input to device.
     cudaMemcpy(deviceLenet, lenet, sizeof(LeNet5), cudaMemcpyHostToDevice);
-    cudaMemcpy(deviceFeatureArray, featureArray, sizeof(Feature) * batchSize, cudaMemcpyHostToDevice);
     
     //Forward propagation kernel call
 	//Third configuration parameter is for the dynamic array allocation within the kernel
-    forwardKernel<<<gridDims, blockDims, sizeof(Feature) * batchSize>>>(lenet->weight0_1, lenet->bias0_1, features->input, features->layer1, features->layer2);
+    forwardKernel<<<gridDims, blockDims, sizeof(Feature) * batchSize>>>(
+		deviceLenet->weight0_1, //Might have to redo to send the address?
+		deviceLenet->bias0_1,
+		deviceInput,
+		deviceLayer1,
+		deviceLayer2
+	);
 
 	//Copy the results back.
     cudaMemcpy(lenet, deviceLenet, sizeof(LeNet5), cudaMemcpyDeviceToHost);

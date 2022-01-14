@@ -59,20 +59,20 @@ void training(LeNet5 *lenet, image *train_data, uint8 *train_label, int batch_si
 	Feature* featureArray = (Feature*)malloc(sizeof(Feature) * batchSize);
 
 	//Allocate the device feature array elements that will be sent to the kernel as arguments.
-	double*** deviceInput;
-	cudaMalloc((void**)&deviceInput, sizeof(double) * INPUT * LENGTH_FEATURE0 * LENGTH_FEATURE0);
-	double*** deviceLayer1;
-	cudaMalloc((void**)&deviceLayer1, sizeof(double) * LAYER1 * LENGTH_FEATURE1 * LENGTH_FEATURE1);
-	double*** deviceLayer2;
-	cudaMalloc((void**)&deviceLayer2, sizeof(double) * LAYER2 * LENGTH_FEATURE2 * LENGTH_FEATURE2);
-	double*** deviceLayer3;
-	cudaMalloc((void**)&deviceLayer3, sizeof(double) * LAYER3 * LENGTH_FEATURE3 * LENGTH_FEATURE3);
-	double*** deviceLayer4;
-	cudaMalloc((void**)&deviceLayer4, sizeof(double) * LAYER4 * LENGTH_FEATURE4 * LENGTH_FEATURE4);
-	double*** deviceLayer5;
-	cudaMalloc((void**)&deviceLayer5, sizeof(double) * LAYER5 * LENGTH_FEATURE5 * LENGTH_FEATURE5);
-	double* deviceOutput;
-	cudaMalloc((void**)&deviceOutput, sizeof(double) * OUTPUT);
+	double**** deviceInput;
+	cudaMalloc((void**)&deviceInput, sizeof(double) * INPUT * LENGTH_FEATURE0 * LENGTH_FEATURE0 * batchSize);
+	double**** deviceLayer1;
+	cudaMalloc((void**)&deviceLayer1, sizeof(double) * LAYER1 * LENGTH_FEATURE1 * LENGTH_FEATURE1 * batchSize);
+	double**** deviceLayer2;
+	cudaMalloc((void**)&deviceLayer2, sizeof(double) * LAYER2 * LENGTH_FEATURE2 * LENGTH_FEATURE2 * batchSize);
+	double**** deviceLayer3;
+	cudaMalloc((void**)&deviceLayer3, sizeof(double) * LAYER3 * LENGTH_FEATURE3 * LENGTH_FEATURE3 * batchSize);
+	double**** deviceLayer4;
+	cudaMalloc((void**)&deviceLayer4, sizeof(double) * LAYER4 * LENGTH_FEATURE4 * LENGTH_FEATURE4 * batchSize);
+	double**** deviceLayer5;
+	cudaMalloc((void**)&deviceLayer5, sizeof(double) * LAYER5 * LENGTH_FEATURE5 * LENGTH_FEATURE5 * batchSize);
+	double** deviceOutput;
+	cudaMalloc((void**)&deviceOutput, sizeof(double) * OUTPUT * batchSize);
 
 	//Allocate the device neural net.
 	LeNet5* deviceLenet;
@@ -102,6 +102,7 @@ void training(LeNet5 *lenet, image *train_data, uint8 *train_label, int batch_si
 	}
 
 	cudaFree(deviceLenet);
+	
 	cudaFree(deviceInput);
 	cudaFree(deviceLayer1);
 	cudaFree(deviceLayer2);
