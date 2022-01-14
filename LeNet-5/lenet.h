@@ -76,12 +76,12 @@ typedef struct Feature
 	double output[OUTPUT];
 }Feature;
 
-void TrainBatch(LeNet5 *lenet, image *inputs, uint8 *labels, int batchSize);
+void TrainBatch(LeNet5* lenet, Feature* featureArray, image* inputs, uint8* labels, int batchSize, LeNet5* deviceLenet, Feature* deviceFeatureArray);
 
-void Train(LeNet5 *lenet, image input, uint8 label);
+void Train(LeNet5* lenet, image input, uint8 label);
 
-uint8 Predict(LeNet5 *lenet, image input, uint8 count);
+uint8 Predict(LeNet5* lenet, image input, uint8 count);
 
-void Initial(LeNet5 *lenet);
+void Initial(LeNet5* lenet);
 
 void PrintResult(int confusion_matrix[OUTPUT][OUTPUT]);

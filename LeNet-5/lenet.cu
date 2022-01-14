@@ -35,22 +35,22 @@ SOFTWARE.
 
 #define FOREACH(i,count) for (int i = 0; i < count; ++i)
 
-#define CONVOLUTE_VALID(input, output, weight)
-{
-	FOREACH(o0, GETLENGTH(output))
-    {
-		FOREACH(o1, GETLENGTH(*output))
-        {
-			FOREACH(w0, GETLENGTH(weight))
-            {
-				FOREACH(w1, GETLENGTH(*weight))
-                {
-					output[o0][o1] += input[o0 + w0][o1 + w1] * weight[w0][w1];
-                }
-            }
-        }
-    }
-}
+#define CONVOLUTE_VALID(input, output, weight)											\
+{																						\
+	FOREACH(o0, GETLENGTH(output))														\
+    {																					\
+		FOREACH(o1, GETLENGTH(*output))													\
+        {																				\
+			FOREACH(w0, GETLENGTH(weight))												\
+            {																			\
+				FOREACH(w1, GETLENGTH(*weight))											\
+                {																		\
+					output[o0][o1] += input[o0 + w0][o1 + w1] * weight[w0][w1];			\
+                }																		\
+            }																			\
+        }																				\
+    }																					\
+}																						\
 
 #define CONVOLUTE_FULL(input,output,weight)												\
 {																						\
@@ -62,65 +62,65 @@ SOFTWARE.
 }
 
 // Similar functionality as the code in Figure 16.4 of the textbook
-#define CONVOLUTION_FORWARD(input, output, weight, bias)
-{
-	for (int x = 0; x < GETLENGTH(weight); ++x)
-    {
-		for (int y = 0; y < GETLENGTH(*weight); ++y)
-        {
-			CONVOLUTE_VALID(input[x], output[y], weight[x][y]);
-        }
-    }
-	FOREACH(j, GETLENGTH(output))
-    {
-		FOREACH(i, GETCOUNT(output[j]))
-        {
-		    ((double*)output[j])[i] = relu(((double*)output[j])[i] + bias[j]);
-        }
-    }
-}
+#define CONVOLUTION_FORWARD(input, output, weight, bias)								\
+{																						\
+	for (int x = 0; x < GETLENGTH(weight); ++x)											\
+    {																					\
+		for (int y = 0; y < GETLENGTH(*weight); ++y)									\
+        {																				\
+			CONVOLUTE_VALID(input[x], output[y], weight[x][y]);							\
+        }																				\
+    }																					\
+	FOREACH(j, GETLENGTH(output))														\
+    {																					\
+		FOREACH(i, GETCOUNT(output[j]))													\
+        {																				\
+		    ((double*)output[j])[i] = relu(((double*)output[j])[i] + bias[j]);			\
+        }																				\
+    }																					\
+}																						\
 
-#define CONVOLUTION_BACKWARD(input,inerror,outerror,weight,wd,bd,actiongrad)\
-{																			\
-	for (int x = 0; x < GETLENGTH(weight); ++x)								\
-		for (int y = 0; y < GETLENGTH(*weight); ++y)						\
-			CONVOLUTE_FULL(outerror[y], inerror[x], weight[x][y]);			\
-	FOREACH(i, GETCOUNT(inerror))											\
-		((double *)inerror)[i] *= actiongrad(((double *)input)[i]);			\
-	FOREACH(j, GETLENGTH(outerror))											\
-		FOREACH(i, GETCOUNT(outerror[j]))									\
-		bd[j] += ((double *)outerror[j])[i];								\
-	for (int x = 0; x < GETLENGTH(weight); ++x)								\
-		for (int y = 0; y < GETLENGTH(*weight); ++y)						\
-			CONVOLUTE_VALID(input[x], wd[x][y], outerror[y]);				\
-}
+#define CONVOLUTION_BACKWARD(input,inerror,outerror,weight,wd,bd,actiongrad)			\
+{																						\
+	for (int x = 0; x < GETLENGTH(weight); ++x)											\
+		for (int y = 0; y < GETLENGTH(*weight); ++y)									\
+			CONVOLUTE_FULL(outerror[y], inerror[x], weight[x][y]);						\
+	FOREACH(i, GETCOUNT(inerror))														\
+		((double *)inerror)[i] *= actiongrad(((double *)input)[i]);						\
+	FOREACH(j, GETLENGTH(outerror))														\
+		FOREACH(i, GETCOUNT(outerror[j]))												\
+		bd[j] += ((double *)outerror[j])[i];											\
+	for (int x = 0; x < GETLENGTH(weight); ++x)											\
+		for (int y = 0; y < GETLENGTH(*weight); ++y)									\
+			CONVOLUTE_VALID(input[x], wd[x][y], outerror[y]);							\
+}																						\
 
 // Similar functionality as the code in Figure 16.5 of the textbook
-#define SUBSAMP_MAX_FORWARD(input, output)
-{
-	const int len0 = GETLENGTH(*input) / GETLENGTH(*output);
-	const int len1 = GETLENGTH(**input) / GETLENGTH(**output);
-	FOREACH(i, GETLENGTH(output))
-    {
-	    FOREACH(o0, GETLENGTH(*output))
-        {
-	        FOREACH(o1, GETLENGTH(**output))
-	        {
-		        int x0 = 0, x1 = 0, ismax;
-		        FOREACH(l0, len0)
-                {
-			        FOREACH(l1, len1)
-		            {
-			            ismax = input[i][o0 * len0 + l0][o1 * len1 + l1] > input[i][o0 * len0 + x0][o1 * len1 + x1];
-			            x0 += ismax * (l0 - x0);
-			            x1 += ismax * (l1 - x1);
-		            }
-                }
-		        output[i][o0][o1] = input[i][o0 * len0 + x0][o1 * len1 + x1];
-	        }
-        }
-    }
-}
+#define SUBSAMP_MAX_FORWARD(input, output)												\
+{																						\
+	const int len0 = GETLENGTH(*input) / GETLENGTH(*output);							\
+	const int len1 = GETLENGTH(**input) / GETLENGTH(**output);							\
+	FOREACH(i, GETLENGTH(output))														\
+    {																					\
+	    FOREACH(o0, GETLENGTH(*output))													\
+        {																				\
+	        FOREACH(o1, GETLENGTH(**output))											\
+	        {																			\
+		        int x0 = 0, x1 = 0, ismax;												\
+		        FOREACH(l0, len0)														\
+                {																		\
+			        FOREACH(l1, len1)													\
+		            {																	\
+			            ismax = input[i][o0 * len0 + l0][o1 * len1 + l1] > input[i][o0 * len0 + x0][o1 * len1 + x1];\
+			            x0 += ismax * (l0 - x0);										\
+			            x1 += ismax * (l1 - x1);										\
+		            }																	\
+                }																		\
+		        output[i][o0][o1] = input[i][o0 * len0 + x0][o1 * len1 + x1];			\
+	        }																			\
+        }																				\
+    }																					\
+}																						\
 
 #define SUBSAMP_MAX_BACKWARD(input,inerror,outerror)											\
 {																								\
@@ -142,20 +142,20 @@ SOFTWARE.
 	}																							\
 }
 
-#define DOT_PRODUCT_FORWARD(input, output, weight, bias)
-{
-	for (int x = 0; x < GETLENGTH(weight); ++x)
-    {
-		for (int y = 0; y < GETLENGTH(*weight); ++y)
-        {
-			((double*)output)[y] += ((double*)input)[x] * weight[x][y];
-        }
-    }
-	FOREACH(j, GETLENGTH(bias))	
-    {
-		((double*)output)[j] = relu(((double*)output)[j] + bias[j]);
-    }
-}
+#define DOT_PRODUCT_FORWARD(input, output, weight, bias)										\
+{																								\
+	for (int x = 0; x < GETLENGTH(weight); ++x)													\
+    {																							\
+		for (int y = 0; y < GETLENGTH(*weight); ++y)											\
+        {																						\
+			((double*)output)[y] += ((double*)input)[x] * weight[x][y];							\
+        }																						\
+    }																							\
+	FOREACH(j, GETLENGTH(bias))																	\
+    {																							\
+		((double*)output)[j] = relu(((double*)output)[j] + bias[j]);							\
+    }																							\
+}																								\
 
 #define DOT_PRODUCT_BACKWARD(input,inerror,outerror,weight,wd,bd,actiongrad)	\
 {																				\
@@ -171,10 +171,10 @@ SOFTWARE.
 			wd[x][y] += ((double *)input)[x] * ((double *)outerror)[y];			\
 }
 
-#define relu(x)
-{
-    x * (x > 0);
-}
+#define relu(x)		\
+{					\
+    x * (x > 0);	\
+}					\
 
 // double relu(double x)
 // {
@@ -186,15 +186,15 @@ double relugrad(double y)
 	return y > 0;
 }
 
-static void forward(LeNet5 *lenet, Feature *features, double(*action)(double))
-{
-	CONVOLUTION_FORWARD(features->input, features->layer1, lenet->weight0_1, lenet->bias0_1);
-	SUBSAMP_MAX_FORWARD(features->layer1, features->layer2);
-	CONVOLUTION_FORWARD(features->layer2, features->layer3, lenet->weight2_3, lenet->bias2_3);
-	SUBSAMP_MAX_FORWARD(features->layer3, features->layer4);
-	CONVOLUTION_FORWARD(features->layer4, features->layer5, lenet->weight4_5, lenet->bias4_5);
-	DOT_PRODUCT_FORWARD(features->layer5, features->output, lenet->weight5_6, lenet->bias5_6);
-}
+// static void forward(LeNet5 *lenet, Feature *features, double(*action)(double))
+// {
+// 	CONVOLUTION_FORWARD(features->input, features->layer1, lenet->weight0_1, lenet->bias0_1);
+// 	SUBSAMP_MAX_FORWARD(features->layer1, features->layer2);
+// 	CONVOLUTION_FORWARD(features->layer2, features->layer3, lenet->weight2_3, lenet->bias2_3);
+// 	SUBSAMP_MAX_FORWARD(features->layer3, features->layer4);
+// 	CONVOLUTION_FORWARD(features->layer4, features->layer5, lenet->weight4_5, lenet->bias4_5);
+// 	DOT_PRODUCT_FORWARD(features->layer5, features->output, lenet->weight5_6, lenet->bias5_6);
+// }
 
 static void backward(LeNet5 *lenet, LeNet5 *deltas, Feature *errors, Feature *features, double(*actiongrad)(double))
 {
@@ -286,11 +286,17 @@ static double f64rand()
 	return *(double *)&lvalue - 3;
 }
 
+//Kernel function.
+//Number of threads are: 32 * 32 * 16 * batchSize
 __global__ void forwardKernel(LeNet5* lenet, Feature* featureArray)
 {
-    
-    if (blockIdx.z <= 6)
+    //First we copy everything from the input into shared memory if the thread is part of the first 6 blockIdx.y's.
+	__shared__ Feature* sharedFeatures;
+	
+    if (blockIdx.y <= 6)
     {
+		
+
         CONVOLUTION_FORWARD(features->input, features->layer1, lenet->weight0_1, lenet->bias0_1);
         if (threadIdx.x > 14 && threadIdx.y > 14)
         {
@@ -309,36 +315,39 @@ __global__ void forwardKernel(LeNet5* lenet, Feature* featureArray)
 }
 
 const dim3 blockDims(32, 32, 1);
-void TrainBatch(LeNet5* lenet, image* inputs, uint8* labels, int batchSize)
+void TrainBatch(LeNet5* lenet, Feature* featureArray, image* inputs, uint8* labels, int batchSize, LeNet5* deviceLenet, Feature* deviceFeatureArray)
 {
-    dim3 gridDims(1, 1, batchSize);
-    
-	double buffer[GETCOUNT(LeNet5)] = { 0 };
-	int i = 0;
-    Feature* featureArray = (Feature*)malloc(sizeof(Feature) * batchSize);
+	//Set the allocated memory to 0 in the host & device.
+	//Normal lenet  and inputs are NOT set to 0 as they are our input.
+	memset(featureArray, 0, sizeof(Feature) * batchSize);
+	cudaMemset(deviceFeatureArray, 0, sizeof(Feature) * batchSize);
+	cudaMemset(deviceLenet, 0, sizeof(LeNet5));
 
+	//x = nothing since only one block is used "per picture"
+	//y = the current block's position FOR THIS PICTURE. (After sampling the input picture multiple "small" pictures are created, this indicates the index.)
+    //z = What picture this is. Goes from 0-batchSize.
+	dim3 gridDims(1, 16, batchSize);
+    
+	int i = 0;
     //For each training image load input into feature host array.
 	for (i = 0; i < batchSize; ++i)
 	{
 		load_input(&(featureArray[i]), inputs[i]);
     }
 	
-    LeNet5* deviceLenet;
-    cudaMalloc((void**)&deviceLenet, sizeof(LeNet5));
+	//Copy the input to device.
     cudaMemcpy(deviceLenet, lenet, sizeof(LeNet5), cudaMemcpyHostToDevice);
-    Feature* deviceFeatureArray;
-    cudaMalloc((void**)&deviceFeatureArray, sizeof(Feature) * batchSize);
     cudaMemcpy(deviceFeatureArray, featureArray, sizeof(Feature) * batchSize, cudaMemcpyHostToDevice);
     
     //Forward propagation kernel call
-    //forward(lenet, &featureArray);
-    
     forwardKernel<<<gridDims, blockDims>>>(deviceLenet, deviceFeatureArray);
-    cudaMemcpy(lenet, deviceLenet, sizeof(LeNet5), cudaMemcpyDeviceToHost);
-    cudaFree(deviceLenet);
-    cudaMemcpy(featureArray, deviceFeatureArray, sizeof(Feature) * batchSize, cudaMemcpyDeviceToHost);
-    cudaFree(deviceFeatureArray);
 
+	//Copy the results back.
+    cudaMemcpy(lenet, deviceLenet, sizeof(LeNet5), cudaMemcpyDeviceToHost);
+    cudaMemcpy(featureArray, deviceFeatureArray, sizeof(Feature) * batchSize, cudaMemcpyDeviceToHost);
+
+	//Sequential backward propagation.
+	double buffer[GETCOUNT(LeNet5)] = { 0 };
     for (i = 0; i < batchSize; ++i)
     {
         LeNet5	deltas = { 0 };
@@ -350,9 +359,6 @@ void TrainBatch(LeNet5* lenet, image* inputs, uint8* labels, int batchSize)
             buffer[j] += ((double*)&deltas)[j];
         }
 	}
-
-    free(featureArray);
-
 	double k = ALPHA / batchSize;
 	FOREACH(i, GETCOUNT(LeNet5))
     {

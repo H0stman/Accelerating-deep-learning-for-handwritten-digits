@@ -55,13 +55,28 @@ void training(LeNet5 *lenet, image *train_data, uint8 *train_label, int batch_si
 	printf("Total images in training set: %d\n", total_size);
 	printf("Batchsize: %d\n", batch_size);
 
+	//Allocate the host feature array.
+	Feature* featureArray = (Feature*)malloc(sizeof(Feature) * batchSize);
+	//Allocate the device feature array.
+	Feature* deviceFeatureArray;
+    cudaMalloc((void**)&deviceFeatureArray, sizeof(Feature) * batchSize);
+	//Allocate the device neural net.
+	LeNet5* deviceLenet;
+    cudaMalloc((void**)&deviceLenet, sizeof(LeNet5));
+
+	//For every batch we train on.
 	for (int i = 0, percent = 0; i <= total_size - batch_size; i += batch_size)
 	{
 		printf("\nTraining on images: %d-%d\t", i, i + batch_size);
-		TrainBatch(lenet, train_data + i, train_label + i, batch_size);
+		TrainBatch(lenet, featureArray, train_data + i, train_label + i, batch_size, deviceLenet, deviceFeatureArray);
 		if (i * 100 / total_size > percent)
 			printf("Training %2d%% complete", percent = i * 100 / total_size);
 	}
+
+	cudaFree(deviceLenet);
+	cudaFree(deviceFeatureArray);
+	free(featureArray);
+
 	printf("\n");
 }
 
