@@ -287,7 +287,13 @@ static double f64rand()
 }
 
 //Kernel function.
-__global__ void forwardKernel(double**** lenetWeight, double* lenetBias, double*** featureConvInput, double*** featureConvOutput, double*** featureSubsampOutput)
+__global__ void forwardKernel(
+	double**** lenetWeight,
+	double* lenetBias,
+	double**** featureConvInput,
+	double**** featureConvOutput,
+	double**** featureSubsampOutput
+)
 {
     //First we copy everything from the input into shared memory if the thread is part of the first 6 blockIdx.y's.
 	extern __shared__ Feature sharedFeatures[];
@@ -317,7 +323,7 @@ __global__ void forwardKernel(double**** lenetWeight, double* lenetBias, double*
     return;
 }
 
-const dim3 blockDims(32, 32, 1);
+
 void TrainBatch(
 	LeNet5* lenet,
 	Feature* featureArray,
@@ -350,8 +356,7 @@ void TrainBatch(
 	//x = nothing since only one block is used "per picture"
 	//y = the current block's position FOR THIS PICTURE. (After sampling the input picture multiple "small" pictures are created, this indicates the index.)
     //z = What picture this is. Goes from 0-batchSize.
-	dim3 gridDims(1, 16, batchSize);
-    
+	
 	int i = 0;
     //For each training image load input into feature host array.
 	for (i = 0; i < batchSize; ++i)
@@ -369,7 +374,10 @@ void TrainBatch(
 	//Copy the input to device.
     cudaMemcpy(deviceLenet, lenet, sizeof(LeNet5), cudaMemcpyHostToDevice);
     
-    //Forward propagation kernel call
+	dim3 gridDims(1, 6, batchSize);
+    dim3 blockDims(32, 32, 1);
+
+    //First forward propagation kernel call
 	//Third configuration parameter is for the dynamic array allocation within the kernel
     forwardKernel<<<gridDims, blockDims, sizeof(Feature) * batchSize>>>(
 		deviceLenet->weight0_1, //Might have to redo to send the address?
@@ -379,14 +387,43 @@ void TrainBatch(
 		deviceLayer2
 	);
 
+	gridDims.y = 16;
+	blockDims.x = 14;
+	blockDims.y = 14;
+	forwardKernel<<<gridDims, blockDims, sizeof(Feature) * batchSize>>>(
+		deviceLenet->weight2_3, //Might have to redo to send the address?
+		deviceLenet->bias2_3,
+		deviceLayer2,
+		deviceLayer3,
+		deviceLayer4
+	);
+
+	//Different change this
+	forwardKernel<<<gridDims, blockDims, sizeof(Feature) * batchSize>>>(
+		deviceLenet->weight4_5, //Might have to redo to send the address?
+		deviceLenet->bias4_5,
+		deviceLayer4,
+		deviceLayer5,
+		deviceOutput //Not the same dimensions, have to make a separate kernel call here?
+	);
+
 	//Copy the results back.
-    cudaMemcpy(lenet, deviceLenet, sizeof(LeNet5), cudaMemcpyDeviceToHost);
-    cudaMemcpy(featureArray, deviceFeatureArray, sizeof(Feature) * batchSize, cudaMemcpyDeviceToHost);
+	//Not needed since we only read from lenet?
+    //cudaMemcpy(lenet, deviceLenet, sizeof(LeNet5), cudaMemcpyDeviceToHost);
 
 	//Sequential backward propagation.
 	double buffer[GETCOUNT(LeNet5)] = { 0 };
     for (i = 0; i < batchSize; ++i)
     {
+		//Copy back the results.
+		cudaMemcpy(featureArray[i]->input, deviceInput[i], sizeof(double) * INPUT * LENGTH_FEATURE0 * LENGTH_FEATURE0, cudaMemcpyDeviceToHost);
+		cudaMemcpy(featureArray[i]->layer1, deviceLayer1[i], sizeof(double) * LAYER1 * LENGTH_FEATURE1 * LENGTH_FEATURE1, cudaMemcpyDeviceToHost);
+		cudaMemcpy(featureArray[i]->layer2, deviceLayer2[i], sizeof(double) * LAYER2 * LENGTH_FEATURE2 * LENGTH_FEATURE2, cudaMemcpyDeviceToHost);
+		cudaMemcpy(featureArray[i]->layer3, deviceLayer3[i], sizeof(double) * LAYER3 * LENGTH_FEATURE3 * LENGTH_FEATURE3, cudaMemcpyDeviceToHost);
+		cudaMemcpy(featureArray[i]->layer4, deviceLayer4[i], sizeof(double) * LAYER4 * LENGTH_FEATURE4 * LENGTH_FEATURE4, cudaMemcpyDeviceToHost);
+		cudaMemcpy(featureArray[i]->layer5, deviceLayer5[i], sizeof(double) * LAYER5 * LENGTH_FEATURE5 * LENGTH_FEATURE5, cudaMemcpyDeviceToHost);
+		cudaMemcpy(featureArray[i]->output, deviceOutput[i], sizeof(double) * OUTPUT, cudaMemcpyDeviceToHost);
+
         LeNet5	deltas = { 0 };
         Feature errors = { 0 };
 		load_target(&(featureArray[i]), &errors, labels[i]);
