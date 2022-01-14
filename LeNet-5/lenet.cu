@@ -287,12 +287,15 @@ static double f64rand()
 }
 
 //Kernel function.
-//Number of threads are: 32 * 32 * 16 * batchSize
-__global__ void forwardKernel(LeNet5* lenet, Feature* featureArray)
+__global__ void forwardKernel(double**** lenetWeight, double* lenetBias, double*** featureConvInput, double*** featureConvOutput, double*** featureSubsampOutput)
 {
     //First we copy everything from the input into shared memory if the thread is part of the first 6 blockIdx.y's.
-	__shared__ Feature* sharedFeatures;
-	
+	extern __shared__ Feature sharedFeatures[];
+	if (blockIdx.y == 1)
+	{
+		sharedFeatures
+	}
+	sharedFeatures[blockIdx.y].input[asdas][sadsa] = featureArray[blockIdx.y].input[asdasd][asdfas];
     if (blockIdx.y <= 6)
     {
 		
@@ -315,7 +318,21 @@ __global__ void forwardKernel(LeNet5* lenet, Feature* featureArray)
 }
 
 const dim3 blockDims(32, 32, 1);
-void TrainBatch(LeNet5* lenet, Feature* featureArray, image* inputs, uint8* labels, int batchSize, LeNet5* deviceLenet, Feature* deviceFeatureArray)
+void TrainBatch(
+	LeNet5* lenet,
+	Feature* featureArray,
+	image* inputs,
+	uint8* labels,
+	int batchSize,
+	LeNet5* deviceLenet,
+	double*** deviceInput,
+	double*** deviceLayer1,
+	double*** deviceLayer2,
+	double*** deviceLayer3,
+	double*** deviceLayer4,
+	double*** deviceLayer5,
+	double* deviceOutput
+)
 {
 	//Set the allocated memory to 0 in the host & device.
 	//Normal lenet  and inputs are NOT set to 0 as they are our input.
@@ -340,7 +357,8 @@ void TrainBatch(LeNet5* lenet, Feature* featureArray, image* inputs, uint8* labe
     cudaMemcpy(deviceFeatureArray, featureArray, sizeof(Feature) * batchSize, cudaMemcpyHostToDevice);
     
     //Forward propagation kernel call
-    forwardKernel<<<gridDims, blockDims>>>(deviceLenet, deviceFeatureArray);
+	//Third configuration parameter is for the dynamic array allocation within the kernel
+    forwardKernel<<<gridDims, blockDims, sizeof(Feature) * batchSize>>>(lenet->weight0_1, lenet->bias0_1, features->input, features->layer1, features->layer2);
 
 	//Copy the results back.
     cudaMemcpy(lenet, deviceLenet, sizeof(LeNet5), cudaMemcpyDeviceToHost);

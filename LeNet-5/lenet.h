@@ -76,7 +76,21 @@ typedef struct Feature
 	double output[OUTPUT];
 }Feature;
 
-void TrainBatch(LeNet5* lenet, Feature* featureArray, image* inputs, uint8* labels, int batchSize, LeNet5* deviceLenet, Feature* deviceFeatureArray);
+void TrainBatch(
+	LeNet5* lenet,
+	Feature* featureArray,
+	image* inputs,
+	uint8* labels,
+	int batchSize,
+	LeNet5* deviceLenet,
+	double*** deviceInput,
+	double*** deviceLayer1,
+	double*** deviceLayer2,
+	double*** deviceLayer3,
+	double*** deviceLayer4,
+	double*** deviceLayer5,
+	double* deviceOutput
+);
 
 void Train(LeNet5* lenet, image input, uint8 label);
 
