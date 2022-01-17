@@ -29,11 +29,11 @@ SOFTWARE.
 #include <math.h>
 #include <stdio.h>
 
-#define GETLENGTH(array) (sizeof(array)/sizeof(*(array)))
+#define GETLENGTH(array) (sizeof(array)/sizeof(*(array)))								\
 
-#define GETCOUNT(array)  (sizeof(array)/sizeof(double))
+#define GETCOUNT(array)  (sizeof(array)/sizeof(double))									\
 
-#define FOREACH(i,count) for (int i = 0; i < count; ++i)
+#define FOREACH(i,count) for (int i = 0; i < count; ++i)								\
 
 #define CONVOLUTE_VALID(input, output, weight)											\
 {																						\
@@ -50,7 +50,7 @@ SOFTWARE.
             }																			\
         }																				\
     }																					\
-}																						\
+}																						
 
 #define CONVOLUTE_FULL(input,output,weight)												\
 {																						\
@@ -59,7 +59,7 @@ SOFTWARE.
 			FOREACH(w0,GETLENGTH(weight))												\
 				FOREACH(w1,GETLENGTH(*(weight)))										\
 					(output)[i0 + w0][i1 + w1] += (input)[i0][i1] * (weight)[w0][w1];	\
-}
+}																						\
 
 // Similar functionality as the code in Figure 16.4 of the textbook
 #define CONVOLUTION_FORWARD(input, output, weight, bias)								\
@@ -75,10 +75,10 @@ SOFTWARE.
     {																					\
 		FOREACH(i, GETCOUNT(output[j]))													\
         {																				\
-		    ((double*)output[j])[i] = relu(((double*)output[j])[i] + bias[j]);			\
+		    ((double*)output[j])[i] = reluMacro(((double*)output[j])[i] + bias[j]);		\
         }																				\
     }																					\
-}																						\
+}																						
 
 #define CONVOLUTION_BACKWARD(input,inerror,outerror,weight,wd,bd,actiongrad)			\
 {																						\
@@ -140,7 +140,7 @@ SOFTWARE.
 		}																						\
 		inerror[i][o0*len0 + x0][o1*len1 + x1] = outerror[i][o0][o1];							\
 	}																							\
-}
+}																								\
 
 #define DOT_PRODUCT_FORWARD(input, output, weight, bias)										\
 {																								\
@@ -153,7 +153,7 @@ SOFTWARE.
     }																							\
 	FOREACH(j, GETLENGTH(bias))																	\
     {																							\
-		((double*)output)[j] = relu(((double*)output)[j] + bias[j]);							\
+		((double*)output)[j] = reluMacro(((double*)output)[j] + bias[j]);						\
     }																							\
 }																								\
 
@@ -169,12 +169,12 @@ SOFTWARE.
 	for (int x = 0; x < GETLENGTH(weight); ++x)									\
 		for (int y = 0; y < GETLENGTH(*weight); ++y)							\
 			wd[x][y] += ((double *)input)[x] * ((double *)outerror)[y];			\
-}
+}																				\
 
-#define relu(x)		\
-{					\
-    x * (x > 0);	\
-}					\
+#define reluMacro(x)		\
+{							\
+    x * (x > 0);			\
+}							\
 
 // double relu(double x)
 // {
@@ -186,15 +186,15 @@ double relugrad(double y)
 	return y > 0;
 }
 
-// static void forward(LeNet5 *lenet, Feature *features, double(*action)(double))
-// {
-// 	CONVOLUTION_FORWARD(features->input, features->layer1, lenet->weight0_1, lenet->bias0_1);
-// 	SUBSAMP_MAX_FORWARD(features->layer1, features->layer2);
-// 	CONVOLUTION_FORWARD(features->layer2, features->layer3, lenet->weight2_3, lenet->bias2_3);
-// 	SUBSAMP_MAX_FORWARD(features->layer3, features->layer4);
-// 	CONVOLUTION_FORWARD(features->layer4, features->layer5, lenet->weight4_5, lenet->bias4_5);
-// 	DOT_PRODUCT_FORWARD(features->layer5, features->output, lenet->weight5_6, lenet->bias5_6);
-// }
+static void forward(LeNet5 *lenet, Feature *features)
+{
+	CONVOLUTION_FORWARD(features->input, features->layer1, lenet->weight0_1, lenet->bias0_1);
+	SUBSAMP_MAX_FORWARD(features->layer1, features->layer2);
+	CONVOLUTION_FORWARD(features->layer2, features->layer3, lenet->weight2_3, lenet->bias2_3);
+	SUBSAMP_MAX_FORWARD(features->layer3, features->layer4);
+	CONVOLUTION_FORWARD(features->layer4, features->layer5, lenet->weight4_5, lenet->bias4_5);
+	DOT_PRODUCT_FORWARD(features->layer5, features->output, lenet->weight5_6, lenet->bias5_6);
+}
 
 static void backward(LeNet5 *lenet, LeNet5 *deltas, Feature *errors, Feature *features, double(*actiongrad)(double))
 {
@@ -290,29 +290,28 @@ static double f64rand()
 __global__ void forwardKernel(
 	double**** lenetWeight,
 	double* lenetBias,
-	double**** featureConvInput,
-	double**** featureConvOutput,
-	double**** featureSubsampOutput
+	struct cudaPitchedPtr* featureConvInput,
+	struct cudaPitchedPtr* featureConvOutput,
+	struct cudaPitchedPtr* featureSubsampOutput
 )
 {
+	
+	/*
     //First we copy everything from the input into shared memory if the thread is part of the first 6 blockIdx.y's.
-	extern __shared__ Feature sharedFeatures[];
-	if (blockIdx.y == 1)
-	{
-		sharedFeatures
-	}
+	extern __shared__ double* sharedFeatures[];
+	
 	sharedFeatures[blockIdx.y].input[asdas][sadsa] = featureArray[blockIdx.y].input[asdasd][asdfas];
     if (blockIdx.y <= 6)
     {
 		
 
-        CONVOLUTION_FORWARD(features->input, features->layer1, lenet->weight0_1, lenet->bias0_1);
+        CONVOLUTION_FORWARD(featureConvInput, featureConvOutput, lenetWeight, lenetBias);
         if (threadIdx.x > 14 && threadIdx.y > 14)
         {
             return;
         }
 
-        SUBSAMP_MAX_FORWARD(features->layer1, features->layer2);
+        SUBSAMP_MAX_FORWARD(featureConvOutput, featureSubsampOutput);
     }
     __syncglobaldevice();
 
@@ -321,8 +320,44 @@ __global__ void forwardKernel(
 	CONVOLUTION_FORWARD(features->layer4, features->layer5, lenet->weight4_5, lenet->bias4_5);
 	DOT_PRODUCT_FORWARD(features->layer5, features->output, lenet->weight5_6, lenet->bias5_6);
     return;
+	*/
 }
 
+//Kernel function run for the output.
+__global__ void forwardKernelLast(
+	double**** lenetWeight,
+	double* lenetBias,
+	struct cudaPitchedPtr* featureConvInput,
+	struct cudaPitchedPtr* featureConvOutput,
+	double* featureSubsampOutput
+)
+{
+	/*
+    //First we copy everything from the input into shared memory if the thread is part of the first 6 blockIdx.y's.
+	extern __shared__ double* sharedFeatures[];
+	
+	sharedFeatures[blockIdx.y].input[asdas][sadsa] = featureArray[blockIdx.y].input[asdasd][asdfas];
+    if (blockIdx.y <= 6)
+    {
+		
+
+        CONVOLUTION_FORWARD(featureConvInput, featureConvOutput, lenetWeight, lenetBias);
+        if (threadIdx.x > 14 && threadIdx.y > 14)
+        {
+            return;
+        }
+
+        SUBSAMP_MAX_FORWARD(featureConvOutput, featureSubsampOutput);
+    }
+    __syncglobaldevice();
+
+	CONVOLUTION_FORWARD(features->layer2, features->layer3, lenet->weight2_3, lenet->bias2_3);
+	SUBSAMP_MAX_FORWARD(features->layer3, features->layer4);
+	CONVOLUTION_FORWARD(features->layer4, features->layer5, lenet->weight4_5, lenet->bias4_5);
+	DOT_PRODUCT_FORWARD(features->layer5, features->output, lenet->weight5_6, lenet->bias5_6);
+    return;
+	*/
+}
 
 void TrainBatch(
 	LeNet5* lenet,
@@ -331,13 +366,13 @@ void TrainBatch(
 	uint8* labels,
 	int batchSize,
 	LeNet5* deviceLenet,
-	double**** deviceInput,
-	double**** deviceLayer1,
-	double**** deviceLayer2,
-	double**** deviceLayer3,
-	double**** deviceLayer4,
-	double**** deviceLayer5,
-	double** deviceOutput
+	struct cudaPitchedPtr* deviceInputCPU,
+	struct cudaPitchedPtr* deviceLayer1CPU,
+	struct cudaPitchedPtr* deviceLayer2CPU,
+	struct cudaPitchedPtr* deviceLayer3CPU,
+	struct cudaPitchedPtr* deviceLayer4CPU,
+	struct cudaPitchedPtr* deviceLayer5CPU,
+	double* deviceOutput
 )
 {
 	//Set the allocated memory to 0 in the host & device.
@@ -346,32 +381,51 @@ void TrainBatch(
 
 	cudaMemset(deviceLenet, 0, sizeof(LeNet5));
 
-	cudaMemset(deviceInput, 0,  sizeof(double) * INPUT * LENGTH_FEATURE0 * LENGTH_FEATURE0 * batchSize);
-	cudaMemset(deviceLayer1, 0,  sizeof(double) * LAYER1 * LENGTH_FEATURE1 * LENGTH_FEATURE1 * batchSize);
-	cudaMemset(deviceLayer2, 0,  sizeof(double) * LAYER2 * LENGTH_FEATURE2 * LENGTH_FEATURE2 * batchSize);
-	cudaMemset(deviceLayer3, 0,  sizeof(double) * LAYER3 * LENGTH_FEATURE3 * LENGTH_FEATURE3 * batchSize);
-	cudaMemset(deviceLayer4, 0,  sizeof(double) * LAYER4 * LENGTH_FEATURE4 * LENGTH_FEATURE4 * batchSize);
-	cudaMemset(deviceLayer5, 0,  sizeof(double) * LAYER5 * LENGTH_FEATURE5 * LENGTH_FEATURE5 * batchSize);
-	cudaMemset(deviceOutput, 0,  sizeof(double) * OUTPUT * batchSize);
-	//x = nothing since only one block is used "per picture"
-	//y = the current block's position FOR THIS PICTURE. (After sampling the input picture multiple "small" pictures are created, this indicates the index.)
-    //z = What picture this is. Goes from 0-batchSize.
-	
+	//Copy the cpu 2d array of 3d arrays to the gpu.
+	struct cudaPitchedPtr* deviceInputGPU = 0;
+	cudaMalloc((void**)&deviceInputGPU, batchSize * sizeof(cudaPitchedPtr));
+	cudaMemcpy(deviceInputGPU, deviceInputCPU, batchSize * sizeof(cudaPitchedPtr), cudaMemcpyHostToDevice);
+	struct cudaPitchedPtr* deviceLayer1GPU = 0;
+	cudaMalloc((void**)&deviceLayer1GPU, batchSize * sizeof(cudaPitchedPtr));
+	cudaMemcpy(deviceLayer1GPU, deviceLayer1CPU, batchSize * sizeof(cudaPitchedPtr), cudaMemcpyHostToDevice);
+	struct cudaPitchedPtr* deviceLayer2GPU = 0;
+	cudaMalloc((void**)&deviceLayer2GPU, batchSize * sizeof(cudaPitchedPtr));
+	cudaMemcpy(deviceLayer2GPU, deviceLayer2CPU, batchSize * sizeof(cudaPitchedPtr), cudaMemcpyHostToDevice);
+	struct cudaPitchedPtr* deviceLayer3GPU = 0;
+	cudaMalloc((void**)&deviceLayer3GPU, batchSize * sizeof(cudaPitchedPtr));
+	cudaMemcpy(deviceLayer3GPU, deviceLayer3CPU, batchSize * sizeof(cudaPitchedPtr), cudaMemcpyHostToDevice);
+	struct cudaPitchedPtr* deviceLayer4GPU = 0;
+	cudaMalloc((void**)&deviceLayer4GPU, batchSize * sizeof(cudaPitchedPtr));
+	cudaMemcpy(deviceLayer4GPU, deviceLayer4CPU, batchSize * sizeof(cudaPitchedPtr), cudaMemcpyHostToDevice);
+	struct cudaPitchedPtr* deviceLayer5GPU = 0;
+	cudaMalloc((void**)&deviceLayer5GPU, batchSize * sizeof(cudaPitchedPtr));
+	cudaMemcpy(deviceLayer5GPU, deviceLayer5CPU, batchSize * sizeof(cudaPitchedPtr), cudaMemcpyHostToDevice);
+
 	int i = 0;
     //For each training image load input into feature host array.
 	for (i = 0; i < batchSize; ++i)
 	{
 		load_input(&(featureArray[i]), inputs[i]);
-		cudaMemcpy(deviceInput[i], featureArray[i]->input, sizeof(double) * INPUT * LENGTH_FEATURE0 * LENGTH_FEATURE0, cudaMemcpyHostToDevice);
-		cudaMemcpy(deviceLayer1[i], featureArray[i]->layer1, sizeof(double) * LAYER1 * LENGTH_FEATURE1 * LENGTH_FEATURE1, cudaMemcpyHostToDevice);
-		cudaMemcpy(deviceLayer2[i], featureArray[i]->layer2, sizeof(double) * LAYER2 * LENGTH_FEATURE2 * LENGTH_FEATURE2, cudaMemcpyHostToDevice);
-		cudaMemcpy(deviceLayer3[i], featureArray[i]->layer3, sizeof(double) * LAYER3 * LENGTH_FEATURE3 * LENGTH_FEATURE3, cudaMemcpyHostToDevice);
-		cudaMemcpy(deviceLayer4[i], featureArray[i]->layer4, sizeof(double) * LAYER4 * LENGTH_FEATURE4 * LENGTH_FEATURE4, cudaMemcpyHostToDevice);
-		cudaMemcpy(deviceLayer5[i], featureArray[i]->layer5, sizeof(double) * LAYER5 * LENGTH_FEATURE5 * LENGTH_FEATURE5, cudaMemcpyHostToDevice);
-		cudaMemcpy(deviceOutput[i], featureArray[i]->output, sizeof(double) * OUTPUT, cudaMemcpyHostToDevice);
+
+		cudaMemcpy3DParms p = { 0 };
+		p.kind = cudaMemcpyHostToDevice;
+
+		p.srcPtr = make_cudaPitchedPtr(featureArray[i].input[0][0], INPUT * sizeof(double), INPUT, LENGTH_FEATURE0);
+		p.dstPtr = deviceInputCPU[i];
+		p.extent = make_cudaExtent(INPUT * sizeof(double), LENGTH_FEATURE0, LENGTH_FEATURE0);
+		cudaMemcpy3D(&p);
+
+		//Set the layers to 0.
+		cudaMemset3D(deviceLayer1CPU[i], 0, make_cudaExtent(LAYER1 * sizeof(double), LENGTH_FEATURE1, LENGTH_FEATURE1));
+		cudaMemset3D(deviceLayer2CPU[i], 0, make_cudaExtent(LAYER2 * sizeof(double), LENGTH_FEATURE2, LENGTH_FEATURE2));
+		cudaMemset3D(deviceLayer3CPU[i], 0, make_cudaExtent(LAYER3 * sizeof(double), LENGTH_FEATURE3, LENGTH_FEATURE3));
+		cudaMemset3D(deviceLayer4CPU[i], 0, make_cudaExtent(LAYER4 * sizeof(double), LENGTH_FEATURE4, LENGTH_FEATURE4));
+		cudaMemset3D(deviceLayer5CPU[i], 0, make_cudaExtent(LAYER5 * sizeof(double), LENGTH_FEATURE5, LENGTH_FEATURE5));
     }
-	
-	//Copy the input to device.
+	//Set the output to 0.
+	cudaMemset2D(deviceOutput, OUTPUT * sizeof(double), 0, OUTPUT * sizeof(double), batchSize);
+
+	//Copy the lenet input to device.
     cudaMemcpy(deviceLenet, lenet, sizeof(LeNet5), cudaMemcpyHostToDevice);
     
 	dim3 gridDims(1, 6, batchSize);
@@ -380,50 +434,97 @@ void TrainBatch(
     //First forward propagation kernel call
 	//Third configuration parameter is for the dynamic array allocation within the kernel
     forwardKernel<<<gridDims, blockDims, sizeof(Feature) * batchSize>>>(
-		deviceLenet->weight0_1, //Might have to redo to send the address?
+		(double****)deviceLenet->weight0_1, //Might have to redo to send the address?
 		deviceLenet->bias0_1,
-		deviceInput,
-		deviceLayer1,
-		deviceLayer2
+		deviceInputGPU,
+		deviceLayer1GPU,
+		deviceLayer2GPU
 	);
 
 	gridDims.y = 16;
 	blockDims.x = 14;
 	blockDims.y = 14;
 	forwardKernel<<<gridDims, blockDims, sizeof(Feature) * batchSize>>>(
-		deviceLenet->weight2_3, //Might have to redo to send the address?
+		(double****)deviceLenet->weight2_3, //Might have to redo to send the address?
 		deviceLenet->bias2_3,
-		deviceLayer2,
-		deviceLayer3,
-		deviceLayer4
+		deviceLayer2GPU,
+		deviceLayer3GPU,
+		deviceLayer4GPU
 	);
 
-	//Different change this
-	forwardKernel<<<gridDims, blockDims, sizeof(Feature) * batchSize>>>(
-		deviceLenet->weight4_5, //Might have to redo to send the address?
+	//REWRITE THE GRIDDIMS & BLOCKDIMS HERE!
+	//deviceOutput does not the same dimensions, have to make a separate kernel call here.
+	forwardKernelLast<<<gridDims, blockDims, sizeof(Feature) * batchSize>>>(
+		(double****)deviceLenet->weight4_5, //Might have to redo to send the address?
 		deviceLenet->bias4_5,
-		deviceLayer4,
-		deviceLayer5,
-		deviceOutput //Not the same dimensions, have to make a separate kernel call here?
+		deviceLayer4GPU,
+		deviceLayer5GPU,
+		deviceOutput 
 	);
 
 	//Copy the results back.
-	//Not needed since we only read from lenet?
-    //cudaMemcpy(lenet, deviceLenet, sizeof(LeNet5), cudaMemcpyDeviceToHost);
+	//Create a temporary output 2d array on the cpu to copy back to.
+	double** tempOutput = (double**)malloc(sizeof(double*) * batchSize);
+	for (int i = 0; i < batchSize; i++)
+	{
+		tempOutput[i] = (double*)malloc(sizeof(double) * OUTPUT);
+	}
+	cudaMemcpy2D(tempOutput, OUTPUT * sizeof(double), deviceOutput, OUTPUT * sizeof(double), OUTPUT * sizeof(double), batchSize, cudaMemcpyDeviceToHost);
+    
+	//Copy lenet back.
+	//Not needed since lenet was not changed at all on the gpu.
+	//cudaMemcpy(lenet, deviceLenet, sizeof(LeNet5), cudaMemcpyDeviceToHost);
 
 	//Sequential backward propagation.
 	double buffer[GETCOUNT(LeNet5)] = { 0 };
     for (i = 0; i < batchSize; ++i)
     {
-		//Copy back the results.
-		cudaMemcpy(featureArray[i]->input, deviceInput[i], sizeof(double) * INPUT * LENGTH_FEATURE0 * LENGTH_FEATURE0, cudaMemcpyDeviceToHost);
-		cudaMemcpy(featureArray[i]->layer1, deviceLayer1[i], sizeof(double) * LAYER1 * LENGTH_FEATURE1 * LENGTH_FEATURE1, cudaMemcpyDeviceToHost);
-		cudaMemcpy(featureArray[i]->layer2, deviceLayer2[i], sizeof(double) * LAYER2 * LENGTH_FEATURE2 * LENGTH_FEATURE2, cudaMemcpyDeviceToHost);
-		cudaMemcpy(featureArray[i]->layer3, deviceLayer3[i], sizeof(double) * LAYER3 * LENGTH_FEATURE3 * LENGTH_FEATURE3, cudaMemcpyDeviceToHost);
-		cudaMemcpy(featureArray[i]->layer4, deviceLayer4[i], sizeof(double) * LAYER4 * LENGTH_FEATURE4 * LENGTH_FEATURE4, cudaMemcpyDeviceToHost);
-		cudaMemcpy(featureArray[i]->layer5, deviceLayer5[i], sizeof(double) * LAYER5 * LENGTH_FEATURE5 * LENGTH_FEATURE5, cudaMemcpyDeviceToHost);
-		cudaMemcpy(featureArray[i]->output, deviceOutput[i], sizeof(double) * OUTPUT, cudaMemcpyDeviceToHost);
+		//Copy all the layers back from the GPU. (Except the output layer, has already been done above the for loop.)
+		cudaMemcpy3DParms p = { 0 };
+		p.kind = cudaMemcpyDeviceToHost;
 
+		//Input
+		p.srcPtr = deviceInputCPU[i];
+		p.dstPtr = make_cudaPitchedPtr(featureArray[i].input[0][0], INPUT * sizeof(double), INPUT, LENGTH_FEATURE0);
+		p.extent = make_cudaExtent(INPUT * sizeof(double), LENGTH_FEATURE0, LENGTH_FEATURE0);
+		cudaMemcpy3D(&p);
+
+		//Layer1
+		p.srcPtr = deviceLayer1CPU[i];
+		p.dstPtr = make_cudaPitchedPtr(featureArray[i].layer1[0][0], LAYER1 * sizeof(double), LAYER1, LENGTH_FEATURE1);
+		p.extent = make_cudaExtent(LAYER1 * sizeof(double), LENGTH_FEATURE1, LENGTH_FEATURE1);
+		cudaMemcpy3D(&p);
+
+		//Layer2
+		p.srcPtr = deviceLayer2CPU[i];
+		p.dstPtr = make_cudaPitchedPtr(featureArray[i].layer2[0][0], LAYER2 * sizeof(double), LAYER2, LENGTH_FEATURE2);
+		p.extent = make_cudaExtent(LAYER2 * sizeof(double), LENGTH_FEATURE2, LENGTH_FEATURE2);
+		cudaMemcpy3D(&p);
+
+		//Layer3
+		p.srcPtr = deviceLayer3CPU[i];
+		p.dstPtr = make_cudaPitchedPtr(featureArray[i].layer3[0][0], LAYER3 * sizeof(double), LAYER3, LENGTH_FEATURE3);
+		p.extent = make_cudaExtent(LAYER3 * sizeof(double), LENGTH_FEATURE3, LENGTH_FEATURE3);
+		cudaMemcpy3D(&p);
+
+		//Layer4
+		p.srcPtr = deviceLayer4CPU[i];
+		p.dstPtr = make_cudaPitchedPtr(featureArray[i].layer4[0][0], LAYER4 * sizeof(double), LAYER4, LENGTH_FEATURE4);
+		p.extent = make_cudaExtent(LAYER4 * sizeof(double), LENGTH_FEATURE4, LENGTH_FEATURE4);
+		cudaMemcpy3D(&p);
+
+		//Layer5
+		p.srcPtr = deviceLayer5CPU[i];
+		p.dstPtr = make_cudaPitchedPtr(featureArray[i].layer5[0][0], LAYER5 * sizeof(double), LAYER5, LENGTH_FEATURE5);
+		p.extent = make_cudaExtent(LAYER5 * sizeof(double), LENGTH_FEATURE5, LENGTH_FEATURE5);
+		cudaMemcpy3D(&p);
+
+		//Move output into the featureArray.
+		for (int j = 0; j < OUTPUT; j++)
+		{
+			featureArray[i].output[j] = tempOutput[i][j];
+		}
+		
         LeNet5	deltas = { 0 };
         Feature errors = { 0 };
 		load_target(&(featureArray[i]), &errors, labels[i]);
@@ -439,7 +540,7 @@ void TrainBatch(
         ((double*)lenet)[i] += k * buffer[i];
     }
 }
-
+/*
 void Train(LeNet5 *lenet, image input, uint8 label)
 {
 	Feature features = { 0 };
@@ -452,12 +553,12 @@ void Train(LeNet5 *lenet, image input, uint8 label)
 	FOREACH(i, GETCOUNT(LeNet5))
 		((double *)lenet)[i] += ALPHA * ((double *)&deltas)[i];
 }
-
+*/
 uint8 Predict(LeNet5 *lenet, image input,uint8 count)
 {
 	Feature features = { 0 };
 	load_input(&features, input);
-	forward(lenet, &features, relu);
+	forward(lenet, &features);
 	return get_result(&features, count);
 }
 

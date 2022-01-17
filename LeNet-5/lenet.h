@@ -83,13 +83,13 @@ void TrainBatch(
 	uint8* labels,
 	int batchSize,
 	LeNet5* deviceLenet,
-	double**** deviceInput,
-	double**** deviceLayer1,
-	double**** deviceLayer2,
-	double**** deviceLayer3,
-	double**** deviceLayer4,
-	double**** deviceLayer5,
-	double** deviceOutput
+	struct cudaPitchedPtr* deviceInputCPU,
+	struct cudaPitchedPtr* deviceLayer1CPU,
+	struct cudaPitchedPtr* deviceLayer2CPU,
+	struct cudaPitchedPtr* deviceLayer3CPU,
+	struct cudaPitchedPtr* deviceLayer4CPU,
+	struct cudaPitchedPtr* deviceLayer5CPU,
+	double* deviceOutput
 );
 
 void Train(LeNet5* lenet, image input, uint8 label);
