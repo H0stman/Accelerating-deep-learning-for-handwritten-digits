@@ -27,6 +27,7 @@ SOFTWARE.
 #include <time.h>
 #include <stdlib.h>
 #include <math.h>
+#include <cstdio>
 
 #define GETLENGTH(array) (sizeof(array)/sizeof(*(array)))
 
@@ -263,11 +264,13 @@ void TrainBatch(LeNet5 *lenet, image *inputs, uint8 *labels, int batchSize)
 		LeNet5	deltas = { 0 };
 		load_input(&features, inputs[i]);
 		forward(lenet, &features, relu); // Forward propagation
+		
 		load_target(&features, &errors, labels[i]);
 		backward(lenet, &deltas, &errors, &features, relugrad); // Backpropagation
 		FOREACH(j, GETCOUNT(LeNet5))
 				buffer[j] += ((double *)&deltas)[j];
 	}
+	
 	double k = ALPHA / batchSize;
 	FOREACH(i, GETCOUNT(LeNet5))
 		((double *)lenet)[i] += k * buffer[i];
@@ -296,7 +299,7 @@ uint8 Predict(LeNet5 *lenet, image input,uint8 count)
 
 void Initial(LeNet5 *lenet)
 {
-	for (double *pos = (double *)lenet->weight0_1; pos < (double *)lenet->bias0_1; *pos++ = f64rand());
+	for (double *pos = (double *)lenet->weight0_1; pos < (double *)lenet->bias0_1; *pos++ = 1.0/*f64rand()*/);
 	for (double *pos = (double *)lenet->weight0_1; pos < (double *)lenet->weight2_3; *pos++ *= sqrt(6.0 / (LENGTH_KERNEL * LENGTH_KERNEL * (INPUT + LAYER1))));
 	for (double *pos = (double *)lenet->weight2_3; pos < (double *)lenet->weight4_5; *pos++ *= sqrt(6.0 / (LENGTH_KERNEL * LENGTH_KERNEL * (LAYER2 + LAYER3))));
 	for (double *pos = (double *)lenet->weight4_5; pos < (double *)lenet->weight5_6; *pos++ *= sqrt(6.0 / (LENGTH_KERNEL * LENGTH_KERNEL * (LAYER4 + LAYER5))));

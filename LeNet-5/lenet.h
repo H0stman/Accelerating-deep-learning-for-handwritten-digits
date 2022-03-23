@@ -53,10 +53,10 @@ typedef uint8 image[28][28];
 
 typedef struct LeNet5
 {
-	double weight0_1[INPUT][LAYER1][LENGTH_KERNEL][LENGTH_KERNEL]; 			// 1 * 6 * 5 * 5 = 150
-	double weight2_3[LAYER2][LAYER3][LENGTH_KERNEL][LENGTH_KERNEL]; 		// 6 * 16 * 5 * 5 = 2 400
-	double weight4_5[LAYER4][LAYER5][LENGTH_KERNEL][LENGTH_KERNEL]; 		// 16 * 120 * 5 * 5 = 48 000
-	double weight5_6[LAYER5 * LENGTH_FEATURE5 * LENGTH_FEATURE5][OUTPUT];	// 120 * 1 * 1 * 10 = 1 200
+	double weight0_1[INPUT][LAYER1][LENGTH_KERNEL][LENGTH_KERNEL];
+	double weight2_3[LAYER2][LAYER3][LENGTH_KERNEL][LENGTH_KERNEL];
+	double weight4_5[LAYER4][LAYER5][LENGTH_KERNEL][LENGTH_KERNEL];
+	double weight5_6[LAYER5 * LENGTH_FEATURE5 * LENGTH_FEATURE5][OUTPUT];
 
 	double bias0_1[LAYER1];
 	double bias2_3[LAYER3];
@@ -76,26 +76,12 @@ typedef struct Feature
 	double output[OUTPUT];
 }Feature;
 
-void TrainBatch(
-	LeNet5* lenet,
-	Feature* featureArray,
-	image* inputs,
-	uint8* labels,
-	int batchSize,
-	LeNet5* deviceLenet,
-	struct cudaPitchedPtr* deviceInputCPU,
-	struct cudaPitchedPtr* deviceLayer1CPU,
-	struct cudaPitchedPtr* deviceLayer2CPU,
-	struct cudaPitchedPtr* deviceLayer3CPU,
-	struct cudaPitchedPtr* deviceLayer4CPU,
-	struct cudaPitchedPtr* deviceLayer5CPU,
-	double* deviceOutput
-);
+void TrainBatch(LeNet5 *lenet, image *inputs, uint8 *labels, int batchSize);
 
-void Train(LeNet5* lenet, image input, uint8 label);
+void Train(LeNet5 *lenet, image input, uint8 label);
 
-uint8 Predict(LeNet5* lenet, image input, uint8 count);
+uint8 Predict(LeNet5 *lenet, image input, uint8 count);
 
-void Initial(LeNet5* lenet);
+void Initial(LeNet5 *lenet);
 
 void PrintResult(int confusion_matrix[OUTPUT][OUTPUT]);

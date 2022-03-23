@@ -22,7 +22,7 @@ SOFTWARE.
 */
 // Source: https://github.com/fan-wenjie/LeNet-5
 
-#include "lenet.h"
+#include "lenetGPU.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <time.h>
@@ -58,31 +58,12 @@ void training(LeNet5 *lenet, image *train_data, uint8 *train_label, int batch_si
 	//Allocate the host feature array.
 	Feature* featureArray = (Feature*)malloc(sizeof(Feature) * batch_size);
 
-
-	//Temporary cpu array.
-	struct cudaPitchedPtr* deviceInput = (cudaPitchedPtr*)malloc(sizeof(cudaPitchedPtr) * batch_size);
-	struct cudaPitchedPtr* deviceLayer1 = (cudaPitchedPtr*)malloc(sizeof(cudaPitchedPtr) * batch_size);
-	struct cudaPitchedPtr* deviceLayer2 = (cudaPitchedPtr*)malloc(sizeof(cudaPitchedPtr) * batch_size);
-	struct cudaPitchedPtr* deviceLayer3 = (cudaPitchedPtr*)malloc(sizeof(cudaPitchedPtr) * batch_size);
-	struct cudaPitchedPtr* deviceLayer4 = (cudaPitchedPtr*)malloc(sizeof(cudaPitchedPtr) * batch_size);
-	struct cudaPitchedPtr* deviceLayer5 = (cudaPitchedPtr*)malloc(sizeof(cudaPitchedPtr) * batch_size);
-	for (int i = 0; i < batch_size; i++)
-	{
-		cudaMalloc3D(&(deviceInput[i]), make_cudaExtent(INPUT * sizeof(double), LENGTH_FEATURE0, LENGTH_FEATURE0));
-		cudaMalloc3D(&(deviceLayer1[i]), make_cudaExtent(LAYER1 * sizeof(double), LENGTH_FEATURE1, LENGTH_FEATURE1));
-		cudaMalloc3D(&(deviceLayer2[i]), make_cudaExtent(LAYER2 * sizeof(double), LENGTH_FEATURE2, LENGTH_FEATURE2));
-		cudaMalloc3D(&(deviceLayer3[i]), make_cudaExtent(LAYER3 * sizeof(double), LENGTH_FEATURE3, LENGTH_FEATURE3));
-		cudaMalloc3D(&(deviceLayer4[i]), make_cudaExtent(LAYER4 * sizeof(double), LENGTH_FEATURE4, LENGTH_FEATURE4));
-		cudaMalloc3D(&(deviceLayer5[i]), make_cudaExtent(LAYER5 * sizeof(double), LENGTH_FEATURE5, LENGTH_FEATURE5));
-	}
-	//Output is special.
-	double* deviceOutput = 0;
-	cudaMalloc((void**)&deviceOutput, batch_size * OUTPUT * sizeof(double));
-	
-
+	//Allocate the device feature array.
+	Feature* deviceFeatureArray;
+	gpuErrchk(cudaMalloc((void**)&deviceFeatureArray, sizeof(Feature) * batch_size))
 	//Allocate the device neural net.
 	LeNet5* deviceLenet;
-    cudaMalloc((void**)&deviceLenet, sizeof(LeNet5));
+    gpuErrchk(cudaMalloc((void**)&deviceLenet, sizeof(LeNet5)));
 
 	//For every batch we train on.
 	for (int i = 0, percent = 0; i <= total_size - batch_size; i += batch_size)
@@ -95,39 +76,15 @@ void training(LeNet5 *lenet, image *train_data, uint8 *train_label, int batch_si
 			train_label + i,
 			batch_size,
 			deviceLenet,
-			deviceInput,
-			deviceLayer1,
-			deviceLayer2,
-			deviceLayer3,
-			deviceLayer4,
-			deviceLayer5,
-			deviceOutput
+			deviceFeatureArray
 		);
 		if (i * 100 / total_size > percent)
 			printf("Training %2d%% complete", percent = i * 100 / total_size);
 	}
 
-	cudaFree(deviceLenet);
-	//Redo this
-	/*
-	for (int i = 0; i < batch_size; i++)
-	{
-		cudaFree(deviceInput[i]);
-		cudaFree(deviceLayer1[i]);
-		cudaFree(deviceLayer2[i]);
-		cudaFree(deviceLayer3[i]);
-		cudaFree(deviceLayer4[i]);
-		cudaFree(deviceLayer5[i]);
-		cudaFree(deviceOutput[i]);
-	}
-	cudaFree(deviceInput);
-	cudaFree(deviceLayer1);
-	cudaFree(deviceLayer2);
-	cudaFree(deviceLayer3);
-	cudaFree(deviceLayer4);
-	cudaFree(deviceLayer5);
-	cudaFree(deviceOutput);
-	*/
+	gpuErrchk(cudaFree(deviceLenet));
+	gpuErrchk(cudaFree(deviceFeatureArray));
+
 	free(featureArray);
 
 	printf("\n");
@@ -135,8 +92,9 @@ void training(LeNet5 *lenet, image *train_data, uint8 *train_label, int batch_si
 
 int testing(LeNet5 *lenet, image *test_data, uint8 *test_label, int total_size)
 {
+	/*
 	int confusion_matrix[10][10] = { 0 }; // For our specific problem, we have a 10x10 confusion matrix 
-	int right = 0, percent = 0;
+	int right = 0;
 	for (int i = 0; i < total_size; ++i)
 	{
 		uint8 l = test_label[i];
@@ -146,7 +104,39 @@ int testing(LeNet5 *lenet, image *test_data, uint8 *test_label, int total_size)
 		//if (i * 100 / total_size > percent)
 		//	printf("test:%2d%%\n", percent = i * 100 / total_size);
 	}
+	*/
+	int batch_size = 300;
+	//Allocate the host feature array.
+	Feature* featureArray = (Feature*)malloc(sizeof(Feature) * batch_size);
+
+	//Allocate the device feature array.
+	Feature* deviceFeatureArray;
+	gpuErrchk(cudaMalloc((void**)&deviceFeatureArray, sizeof(Feature) * batch_size))
+	//Allocate the device neural net.
+	LeNet5* deviceLenet;
+    gpuErrchk(cudaMalloc((void**)&deviceLenet, sizeof(LeNet5)));
+
+	int confusion_matrix[10][10] = { 0 }; // For our specific problem, we have a 10x10 confusion matrix 
+	int right = 0;
+	
+	for (int b = 0; b <= total_size - batch_size; b += batch_size)
+	{
+		uint8* p = PredictBatch(lenet, featureArray, test_data + b, batch_size, deviceLenet, deviceFeatureArray, 10);
+
+		for (int i = 0; i < batch_size; i++)
+		{
+			uint8 l = test_label[b + i];
+			confusion_matrix[l][p[i]] += 1;
+			right += (l == p[i]) ? 1 : 0; // If the prediction is correct, increment our counter
+		}
+		free(p);
+	}
 	PrintResult(confusion_matrix);
+
+	gpuErrchk(cudaFree(deviceLenet));
+	gpuErrchk(cudaFree(deviceFeatureArray));
+
+	free(featureArray);
 	return right;
 }
 
