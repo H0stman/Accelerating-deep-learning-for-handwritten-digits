@@ -72,8 +72,8 @@ void training(LeNet5 *lenet, image *train_data, uint8 *train_label, int batch_si
 		TrainBatch(
 			lenet,
 			featureArray,
-			train_data + i,
-			train_label + i,
+			&(train_data[i]),
+			&(train_label[i]),
 			batch_size,
 			deviceLenet,
 			deviceFeatureArray
@@ -92,19 +92,6 @@ void training(LeNet5 *lenet, image *train_data, uint8 *train_label, int batch_si
 
 int testing(LeNet5 *lenet, image *test_data, uint8 *test_label, int total_size)
 {
-	/*
-	int confusion_matrix[10][10] = { 0 }; // For our specific problem, we have a 10x10 confusion matrix 
-	int right = 0;
-	for (int i = 0; i < total_size; ++i)
-	{
-		uint8 l = test_label[i];
-		int p = Predict(lenet, test_data[i], 10);
-		confusion_matrix[l][p] += 1;
-		right += (l == p) ? 1 : 0; // If the prediction is correct, increment our counter
-		//if (i * 100 / total_size > percent)
-		//	printf("test:%2d%%\n", percent = i * 100 / total_size);
-	}
-	*/
 	int batch_size = 300;
 	//Allocate the host feature array.
 	Feature* featureArray = (Feature*)malloc(sizeof(Feature) * batch_size);
@@ -121,7 +108,7 @@ int testing(LeNet5 *lenet, image *test_data, uint8 *test_label, int total_size)
 	
 	for (int b = 0; b <= total_size - batch_size; b += batch_size)
 	{
-		uint8* p = PredictBatch(lenet, featureArray, test_data + b, batch_size, deviceLenet, deviceFeatureArray, 10);
+		uint8* p = PredictBatch(lenet, featureArray, &(test_data[b]), batch_size, deviceLenet, deviceFeatureArray, 10);
 
 		for (int i = 0; i < batch_size; i++)
 		{
@@ -195,9 +182,9 @@ int main()
 	{
 		training(lenet, train_data, train_label, batches[i], COUNT_TRAIN);
 	}
-	// printf("Calculating training accuracy...\n");
-	// int training_right = testing(lenet, train_data, train_label, COUNT_TRAIN);
-	// printf("Training accuracy: %f%%\n", training_right * 100.0 / COUNT_TRAIN);
+	printf("Calculating training accuracy...\n");
+	int training_right = testing(lenet, train_data, train_label, COUNT_TRAIN);
+	printf("Training accuracy: %f%%\n", training_right * 100.0 / COUNT_TRAIN);
 
 	printf("Calculating test accuracy...\n");
 	int right = testing(lenet, test_data, test_label, COUNT_TEST);
