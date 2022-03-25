@@ -58,12 +58,23 @@ void training(LeNet5 *lenet, image *train_data, uint8 *train_label, int batch_si
 	//Allocate the host feature array.
 	Feature* featureArray = (Feature*)malloc(sizeof(Feature) * batch_size);
 
+	Feature* errors = (Feature*)malloc(sizeof(Feature) * batch_size);
+
 	//Allocate the device feature array.
 	Feature* deviceFeatureArray;
 	gpuErrchk(cudaMalloc((void**)&deviceFeatureArray, sizeof(Feature) * batch_size))
 	//Allocate the device neural net.
 	LeNet5* deviceLenet;
     gpuErrchk(cudaMalloc((void**)&deviceLenet, sizeof(LeNet5)));
+
+	image* deviceInputs;
+	gpuErrchk(cudaMalloc((void**)&deviceInputs, sizeof(image) * batch_size));
+
+	Feature* deviceErrors;
+	gpuErrchk(cudaMalloc((void**)&deviceErrors, sizeof(Feature) * batch_size));
+
+	uint8* deviceLabels;
+	gpuErrchk(cudaMalloc((void**)&deviceLabels, sizeof(uint8) * batch_size));
 
 	//For every batch we train on.
 	for (int i = 0, percent = 0; i <= total_size - batch_size; i += batch_size)
@@ -73,10 +84,14 @@ void training(LeNet5 *lenet, image *train_data, uint8 *train_label, int batch_si
 			lenet,
 			featureArray,
 			&(train_data[i]),
+			deviceInputs,
 			&(train_label[i]),
+			deviceLabels,
 			batch_size,
 			deviceLenet,
-			deviceFeatureArray
+			deviceFeatureArray,
+			errors,
+			deviceErrors
 		);
 		if (i * 100 / total_size > percent)
 			printf("Training %2d%% complete", percent = i * 100 / total_size);
@@ -84,7 +99,10 @@ void training(LeNet5 *lenet, image *train_data, uint8 *train_label, int batch_si
 
 	gpuErrchk(cudaFree(deviceLenet));
 	gpuErrchk(cudaFree(deviceFeatureArray));
-
+	gpuErrchk(cudaFree(deviceInputs));
+	gpuErrchk(cudaFree(deviceErrors));
+	gpuErrchk(cudaFree(deviceLabels));
+	free(errors);
 	free(featureArray);
 
 	printf("\n");
@@ -103,12 +121,15 @@ int testing(LeNet5 *lenet, image *test_data, uint8 *test_label, int total_size)
 	LeNet5* deviceLenet;
     gpuErrchk(cudaMalloc((void**)&deviceLenet, sizeof(LeNet5)));
 
+	image* deviceInputs;
+    gpuErrchk(cudaMalloc((void**)&deviceInputs, sizeof(image) * batch_size));
+
 	int confusion_matrix[10][10] = { 0 }; // For our specific problem, we have a 10x10 confusion matrix 
 	int right = 0;
 	
 	for (int b = 0; b <= total_size - batch_size; b += batch_size)
 	{
-		uint8* p = PredictBatch(lenet, featureArray, &(test_data[b]), batch_size, deviceLenet, deviceFeatureArray, 10);
+		uint8* p = PredictBatch(lenet, featureArray, &(test_data[b]), deviceInputs, batch_size, deviceLenet, deviceFeatureArray, 10);
 
 		for (int i = 0; i < batch_size; i++)
 		{
@@ -123,7 +144,7 @@ int testing(LeNet5 *lenet, image *test_data, uint8 *test_label, int total_size)
 		int leftOver = (total_size % batch_size);
 		int b = total_size - leftOver;
 
-		uint8* p = PredictBatch(lenet, featureArray, &(test_data[b]), leftOver, deviceLenet, deviceFeatureArray, 10);
+		uint8* p = PredictBatch(lenet, featureArray, &(test_data[b]), deviceInputs, leftOver, deviceLenet, deviceFeatureArray, 10);
 
 		for (int i = 0; i < leftOver; i++)
 		{
@@ -137,6 +158,7 @@ int testing(LeNet5 *lenet, image *test_data, uint8 *test_label, int total_size)
 
 	gpuErrchk(cudaFree(deviceLenet));
 	gpuErrchk(cudaFree(deviceFeatureArray));
+	gpuErrchk(cudaFree(deviceInputs));
 
 	free(featureArray);
 	return right;

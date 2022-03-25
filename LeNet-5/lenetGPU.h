@@ -81,10 +81,14 @@ void TrainBatch(
 	LeNet5* lenet,
 	Feature* featureArray,
 	image* inputs,
+	image* deviceInputs,
 	uint8* labels,
+	uint8* deviceLabels,
 	int batchSize,
 	LeNet5* deviceLenet,
-	Feature* deviceFeatureArray
+	Feature* deviceFeatureArray,
+	Feature* errors,
+	Feature* deviceErrors
 );
 
 void Train(LeNet5* lenet, image input, uint8 label);
@@ -93,6 +97,7 @@ uint8* PredictBatch(
 	LeNet5* lenet,
 	Feature* featureArray,
 	image* inputs,
+	image* deviceInputs,
 	int batchSize,
 	LeNet5* deviceLenet,
 	Feature* deviceFeatureArray,
