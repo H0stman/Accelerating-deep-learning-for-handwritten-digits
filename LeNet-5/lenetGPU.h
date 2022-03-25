@@ -68,13 +68,13 @@ typedef struct LeNet5
 
 typedef struct Feature
 {
-	double input[INPUT][LENGTH_FEATURE0][LENGTH_FEATURE0];
-	double layer1[LAYER1][LENGTH_FEATURE1][LENGTH_FEATURE1];
-	double layer2[LAYER2][LENGTH_FEATURE2][LENGTH_FEATURE2];
-	double layer3[LAYER3][LENGTH_FEATURE3][LENGTH_FEATURE3];
-	double layer4[LAYER4][LENGTH_FEATURE4][LENGTH_FEATURE4];
-	double layer5[LAYER5][LENGTH_FEATURE5][LENGTH_FEATURE5];
-	double output[OUTPUT];
+	double input[INPUT][LENGTH_FEATURE0][LENGTH_FEATURE0];					//1 * 32 * 32 = 1024 * 300 = 307 200
+	double layer1[LAYER1][LENGTH_FEATURE1][LENGTH_FEATURE1];				//6 * 28 * 28 = 4704 * 300 = 1 411 200
+	double layer2[LAYER2][LENGTH_FEATURE2][LENGTH_FEATURE2];				//6 * 14 * 14 = 1176 * 300 = 352 800
+	double layer3[LAYER3][LENGTH_FEATURE3][LENGTH_FEATURE3];				//16 * 10 * 10 = 1600 * 300 = 480 000
+	double layer4[LAYER4][LENGTH_FEATURE4][LENGTH_FEATURE4];				//16 * 5 * 5 = 400 * 300 = 120 000
+	double layer5[LAYER5][LENGTH_FEATURE5][LENGTH_FEATURE5];				//120 * 1 * 1 = 120 * 300 = 36 000
+	double output[OUTPUT];													///10 = 10 * 300 = 3 000
 }Feature;
 
 void TrainBatch(

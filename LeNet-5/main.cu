@@ -118,6 +118,21 @@ int testing(LeNet5 *lenet, image *test_data, uint8 *test_label, int total_size)
 		}
 		free(p);
 	}
+	if (total_size % batch_size != 0)
+	{
+		int leftOver = (total_size % batch_size);
+		int b = total_size - leftOver;
+
+		uint8* p = PredictBatch(lenet, featureArray, &(test_data[b]), leftOver, deviceLenet, deviceFeatureArray, 10);
+
+		for (int i = 0; i < leftOver; i++)
+		{
+			uint8 l = test_label[b + i];
+			confusion_matrix[l][p[i]] += 1;
+			right += (l == p[i]) ? 1 : 0; // If the prediction is correct, increment our counter
+		}
+		free(p);
+	}
 	PrintResult(confusion_matrix);
 
 	gpuErrchk(cudaFree(deviceLenet));

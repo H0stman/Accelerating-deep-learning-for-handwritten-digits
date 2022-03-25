@@ -50,7 +50,7 @@ SOFTWARE.
 	{																									\
 		for (unsigned int j = 0; j < LENGTH_KERNEL; j++)												\
 		{																								\
-			output[threadIdx.x][threadIdx.y] = __dadd_rn(output[threadIdx.x][threadIdx.y], __dmul_rn(input[threadIdx.x + i][threadIdx.y + j], weight[0 * LAYER1 * LENGTH_KERNEL * LENGTH_KERNEL + blockIdx.y * LENGTH_KERNEL * LENGTH_KERNEL + i * LENGTH_KERNEL + j]));	\
+			output[threadIdx.x][threadIdx.y] = __dadd_rn(output[threadIdx.x][threadIdx.y], __dmul_rn(input[threadIdx.x + i][threadIdx.y + j], weight[i][j]));	\
 		}																								\
 	}																									\
 }
@@ -61,7 +61,7 @@ SOFTWARE.
 	{																									\
 		for (unsigned int j = 0; j < LENGTH_KERNEL; j++)												\
 		{																								\
-			output[threadIdx.x][threadIdx.y] = __dadd_rn(output[threadIdx.x][threadIdx.y], __dmul_rn(input[threadIdx.x + i][threadIdx.y + j], weight[0 * LAYER3 * LENGTH_KERNEL * LENGTH_KERNEL + blockIdx.y * LENGTH_KERNEL * LENGTH_KERNEL + i * LENGTH_KERNEL + j]));	\
+			output[threadIdx.x][threadIdx.y] = __dadd_rn(output[threadIdx.x][threadIdx.y], __dmul_rn(input[threadIdx.x + i][threadIdx.y + j], weight[i][j]));	\
 		}																								\
 	}																									\
 }
@@ -72,7 +72,7 @@ SOFTWARE.
 	{																									\
 		for (unsigned int j = 0; j < LENGTH_KERNEL; j++)												\
 		{																								\
-			output[0][0] = __dadd_rn(output[0][0] , __dmul_rn(input[0 + i][0 + j], weight[0 * LAYER5 * LENGTH_KERNEL * LENGTH_KERNEL + blockIdx.y * LENGTH_KERNEL * LENGTH_KERNEL + i * LENGTH_KERNEL + j]));	\
+			output[0][0] = __dadd_rn(output[0][0] , __dmul_rn(input[0 + i][0 + j], weight[i][j]));	\
 		}																								\
 	}																									\
 }
@@ -99,24 +99,24 @@ SOFTWARE.
 
 #define CONVOLUTION_FORWARD_GPU1(input, output, weight, bias)																		\
 {																																	\
-	CONVOLUTE_VALID_GPU1(input[0], output[blockIdx.y], weight);																		\
+	CONVOLUTE_VALID_GPU1(input[0], output[blockIdx.y], weight[0][blockIdx.y]);																		\
 	((double *)output[blockIdx.y])[threadIdx.x * LENGTH_FEATURE1 + threadIdx.y] = relu(__dadd_rn(((double *)output[blockIdx.y])[threadIdx.x * LENGTH_FEATURE1 + threadIdx.y], bias[blockIdx.y]));	\
 }
 
 #define CONVOLUTION_FORWARD_GPU2(input, output, weight, bias)																		\
 {																																	\
-	for (unsigned int i = 0; i < LAYER2; i++)																						\
+	for (unsigned int q = 0; q < LAYER2; q++)																						\
 	{																																\
-		CONVOLUTE_VALID_GPU2(input[i], output[blockIdx.y], weight);																	\
+		CONVOLUTE_VALID_GPU2(input[q], output[blockIdx.y], weight[q][blockIdx.y]);																	\
 	}																																\
 	((double *)output[blockIdx.y])[threadIdx.x * LENGTH_FEATURE3 + threadIdx.y] = relu(__dadd_rn(((double *)output[blockIdx.y])[threadIdx.x * LENGTH_FEATURE3 + threadIdx.y], bias[blockIdx.y]));			\
 }
 
 #define CONVOLUTION_FORWARD_GPU3(input, output, weight, bias)																		\
 {																																	\
-	for (unsigned int i = 0; i < LAYER4; i++)																						\
+	for (unsigned int q = 0; q < LAYER4; q++)																						\
 	{																																\
-		CONVOLUTE_VALID_GPU3(input[i], output[blockIdx.y], weight);																	\
+		CONVOLUTE_VALID_GPU3(input[q], output[blockIdx.y], weight[q][blockIdx.y]);																	\
 	}																																\
 	((double *)output[blockIdx.y])[0] = relu(__dadd_rn(((double *)output[blockIdx.y])[0], bias[blockIdx.y]));								\
 }
@@ -207,7 +207,7 @@ SOFTWARE.
 {																										\
 	for (unsigned int i = 0; i < LAYER5; i++)															\
     {																									\
-		((double*)output)[threadIdx.x] = __dadd_rn(((double*)output)[threadIdx.x], __dmul_rn(((double *)input)[i], weight[i * OUTPUT + threadIdx.x]));		\
+		((double*)output)[threadIdx.x] = __dadd_rn(((double*)output)[threadIdx.x], __dmul_rn(((double *)input)[i], weight[i][threadIdx.x]));		\
     }																									\
 	((double*)output)[threadIdx.x] = relu(__dadd_rn(((double*)output)[threadIdx.x], bias[threadIdx.x]));			\
 }																								
@@ -321,7 +321,7 @@ static uint8 get_result(Feature *features, uint8 count)
 	}
 	return result;
 }
-
+//Randomizes between -1 and 1.
 static double f64rand()
 {
 	static int randbit = 0;
@@ -340,12 +340,11 @@ static double f64rand()
 
 //Kernel function.
 __global__ void forwardKernelFirst(
-	double* lenetWeight,
-	double* lenetBias,
+	void** lenet,
 	void** featureArray
 )
 {
-	CONVOLUTION_FORWARD_GPU1(((Feature*)featureArray)[blockIdx.z].input, ((Feature*)featureArray)[blockIdx.z].layer1, lenetWeight, lenetBias);
+	CONVOLUTION_FORWARD_GPU1(((Feature*)featureArray)[blockIdx.z].input, ((Feature*)featureArray)[blockIdx.z].layer1, ((LeNet5*)lenet)->weight0_1, ((LeNet5*)lenet)->bias0_1);
     return;
 }
 
@@ -358,12 +357,11 @@ __global__ void forwardKernelFirstSubsamp(
 }
 
 __global__ void forwardKernelSecond(
-	double* lenetWeight,
-	double* lenetBias,
+	void** lenet,
 	void** featureArray
 )
 {
-	CONVOLUTION_FORWARD_GPU2(((Feature*)featureArray)[blockIdx.z].layer2, ((Feature*)featureArray)[blockIdx.z].layer3, lenetWeight, lenetBias);
+	CONVOLUTION_FORWARD_GPU2(((Feature*)featureArray)[blockIdx.z].layer2, ((Feature*)featureArray)[blockIdx.z].layer3, ((LeNet5*)lenet)->weight2_3, ((LeNet5*)lenet)->bias2_3);
     return;
 }
 
@@ -377,22 +375,20 @@ __global__ void forwardKernelSecondSubsamp(
 
 //Kernel function run for the output.
 __global__ void forwardKernelLast(
-	double* lenetWeight,
-	double* lenetBias,
+	void** lenet,
 	void** featureArray
 )
 {
-	CONVOLUTION_FORWARD_GPU3(((Feature*)featureArray)[blockIdx.z].layer4, ((Feature*)featureArray)[blockIdx.z].layer5, lenetWeight, lenetBias);
+	CONVOLUTION_FORWARD_GPU3(((Feature*)featureArray)[blockIdx.z].layer4, ((Feature*)featureArray)[blockIdx.z].layer5, ((LeNet5*)lenet)->weight4_5, ((LeNet5*)lenet)->bias4_5);
     return;
 }
 
 __global__ void forwardKernelDot(
-	double* lenetWeight,
-	double* lenetBias,
+	void** lenet,
 	void** featureArray
 )
 {
-	DOT_PRODUCT_FORWARD_GPU(((Feature*)featureArray)[blockIdx.z].layer5, ((Feature*)featureArray)[blockIdx.z].output, lenetWeight, lenetBias);
+	DOT_PRODUCT_FORWARD_GPU(((Feature*)featureArray)[blockIdx.z].layer5, ((Feature*)featureArray)[blockIdx.z].output, ((LeNet5*)lenet)->weight5_6, ((LeNet5*)lenet)->bias5_6);
 	return;
 }
 
@@ -430,8 +426,7 @@ void TrainBatch(
     //First forward propagation kernel calls
 	//Third configuration parameter is for the dynamic array allocation within the kernel
     forwardKernelFirst<<<gridDims, blockDims>>>(
-		(double*)deviceLenet->weight0_1,
-		deviceLenet->bias0_1,
+		(void**)deviceLenet,
 		(void**)deviceFeatureArray
 	);
 
@@ -446,8 +441,7 @@ void TrainBatch(
 	blockDims.y = 10;
 
 	forwardKernelSecond<<<gridDims, blockDims>>>(
-		(double*)deviceLenet->weight2_3,
-		deviceLenet->bias2_3,
+		(void**)deviceLenet,
 		(void**)deviceFeatureArray
 	);
 
@@ -462,8 +456,7 @@ void TrainBatch(
 	blockDims.y = 1;
 	//deviceOutput does not the same dimensions, have to make a separate kernel call here.
 	forwardKernelLast<<<gridDims, blockDims>>>(
-		(double*)deviceLenet->weight4_5, 
-		deviceLenet->bias4_5,
+		(void**)deviceLenet,
 		(void**)deviceFeatureArray
 	);
 
@@ -471,8 +464,7 @@ void TrainBatch(
 	blockDims.x = 10;
 	blockDims.y = 1;
 	forwardKernelDot<<<gridDims, blockDims>>>(
-		(double*)deviceLenet->weight5_6,
-		deviceLenet->bias5_6,
+		(void**)deviceLenet,
 		(void**)deviceFeatureArray
 	);
 	
@@ -548,8 +540,7 @@ uint8* PredictBatch(
     //First forward propagation kernel calls
 	//Third configuration parameter is for the dynamic array allocation within the kernel
     forwardKernelFirst<<<gridDims, blockDims>>>(
-		(double*)deviceLenet->weight0_1,
-		deviceLenet->bias0_1,
+		(void**)deviceLenet,
 		(void**)deviceFeatureArray
 	);
 	
@@ -564,8 +555,7 @@ uint8* PredictBatch(
 	blockDims.y = 10;
 	
 	forwardKernelSecond<<<gridDims, blockDims>>>(
-		(double*)deviceLenet->weight2_3,
-		deviceLenet->bias2_3,
+		(void**)deviceLenet,
 		(void**)deviceFeatureArray
 	);
 
@@ -580,8 +570,7 @@ uint8* PredictBatch(
 	blockDims.y = 1;
 	//deviceOutput does not the same dimensions, have to make a separate kernel call here.
 	forwardKernelLast<<<gridDims, blockDims>>>(
-		(double*)deviceLenet->weight4_5, 
-		deviceLenet->bias4_5,
+		(void**)deviceLenet,
 		(void**)deviceFeatureArray
 	);
 
@@ -589,8 +578,7 @@ uint8* PredictBatch(
 	blockDims.x = 10;
 	blockDims.y = 1;
 	forwardKernelDot<<<gridDims, blockDims>>>(
-		(double*)deviceLenet->weight5_6,
-		deviceLenet->bias5_6,
+		(void**)deviceLenet,
 		(void**)deviceFeatureArray
 	);
 	
