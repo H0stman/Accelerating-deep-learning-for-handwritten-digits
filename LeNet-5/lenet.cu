@@ -50,7 +50,7 @@ SOFTWARE.
 	{																									\
 		for (unsigned int j = 0; j < LENGTH_KERNEL; j++)												\
 		{																								\
-			output[threadIdx.x][threadIdx.y] += input[threadIdx.x + i][threadIdx.y + j] * weight[0 * LAYER1 * LENGTH_KERNEL * LENGTH_KERNEL + blockIdx.y * LENGTH_KERNEL * LENGTH_KERNEL + i * LENGTH_KERNEL + j];	\
+			output[threadIdx.x][threadIdx.y] = __dadd_rn(output[threadIdx.x][threadIdx.y], __dmul_rn(input[threadIdx.x + i][threadIdx.y + j], weight[0 * LAYER1 * LENGTH_KERNEL * LENGTH_KERNEL + blockIdx.y * LENGTH_KERNEL * LENGTH_KERNEL + i * LENGTH_KERNEL + j]));	\
 		}																								\
 	}																									\
 }
@@ -61,7 +61,7 @@ SOFTWARE.
 	{																									\
 		for (unsigned int j = 0; j < LENGTH_KERNEL; j++)												\
 		{																								\
-			output[threadIdx.x][threadIdx.y] += input[threadIdx.x + i][threadIdx.y + j] * weight[0 * LAYER3 * LENGTH_KERNEL * LENGTH_KERNEL + blockIdx.y * LENGTH_KERNEL * LENGTH_KERNEL + i * LENGTH_KERNEL + j];	\
+			output[threadIdx.x][threadIdx.y] = __dadd_rn(output[threadIdx.x][threadIdx.y], __dmul_rn(input[threadIdx.x + i][threadIdx.y + j], weight[0 * LAYER3 * LENGTH_KERNEL * LENGTH_KERNEL + blockIdx.y * LENGTH_KERNEL * LENGTH_KERNEL + i * LENGTH_KERNEL + j]));	\
 		}																								\
 	}																									\
 }
@@ -72,7 +72,7 @@ SOFTWARE.
 	{																									\
 		for (unsigned int j = 0; j < LENGTH_KERNEL; j++)												\
 		{																								\
-			output[0][0] += input[0 + i][0 + j] * weight[0 * LAYER5 * LENGTH_KERNEL * LENGTH_KERNEL + blockIdx.y * LENGTH_KERNEL * LENGTH_KERNEL + i * LENGTH_KERNEL + j];	\
+			output[0][0] = __dadd_rn(output[0][0] , __dmul_rn(input[0 + i][0 + j], weight[0 * LAYER5 * LENGTH_KERNEL * LENGTH_KERNEL + blockIdx.y * LENGTH_KERNEL * LENGTH_KERNEL + i * LENGTH_KERNEL + j]));	\
 		}																								\
 	}																									\
 }
@@ -100,7 +100,7 @@ SOFTWARE.
 #define CONVOLUTION_FORWARD_GPU1(input, output, weight, bias)																		\
 {																																	\
 	CONVOLUTE_VALID_GPU1(input[0], output[blockIdx.y], weight);																		\
-	((double *)output[blockIdx.y])[threadIdx.x * LENGTH_FEATURE1 + threadIdx.y] = relu(((double *)output[blockIdx.y])[threadIdx.x * LENGTH_FEATURE1 + threadIdx.y] + bias[blockIdx.y]);	\
+	((double *)output[blockIdx.y])[threadIdx.x * LENGTH_FEATURE1 + threadIdx.y] = relu(__dadd_rn(((double *)output[blockIdx.y])[threadIdx.x * LENGTH_FEATURE1 + threadIdx.y], bias[blockIdx.y]));	\
 }
 
 #define CONVOLUTION_FORWARD_GPU2(input, output, weight, bias)																		\
@@ -109,7 +109,7 @@ SOFTWARE.
 	{																																\
 		CONVOLUTE_VALID_GPU2(input[i], output[blockIdx.y], weight);																	\
 	}																																\
-	((double *)output[blockIdx.y])[threadIdx.x * LENGTH_FEATURE3 + threadIdx.y] = relu(((double *)output[blockIdx.y])[threadIdx.x * LENGTH_FEATURE3 + threadIdx.y] + bias[blockIdx.y]);			\
+	((double *)output[blockIdx.y])[threadIdx.x * LENGTH_FEATURE3 + threadIdx.y] = relu(__dadd_rn(((double *)output[blockIdx.y])[threadIdx.x * LENGTH_FEATURE3 + threadIdx.y], bias[blockIdx.y]));			\
 }
 
 #define CONVOLUTION_FORWARD_GPU3(input, output, weight, bias)																		\
@@ -118,7 +118,7 @@ SOFTWARE.
 	{																																\
 		CONVOLUTE_VALID_GPU3(input[i], output[blockIdx.y], weight);																	\
 	}																																\
-	((double *)output[blockIdx.y])[0] = relu(((double *)output[blockIdx.y])[0] + bias[blockIdx.y]);								\
+	((double *)output[blockIdx.y])[0] = relu(__dadd_rn(((double *)output[blockIdx.y])[0], bias[blockIdx.y]));								\
 }
 
 #define CONVOLUTION_BACKWARD(input,inerror,outerror,weight,wd,bd,actiongrad)\
@@ -207,9 +207,9 @@ SOFTWARE.
 {																										\
 	for (unsigned int i = 0; i < LAYER5; i++)															\
     {																									\
-		((double*)output)[threadIdx.x] += ((double *)input)[i] * weight[i * OUTPUT + threadIdx.x];		\
+		((double*)output)[threadIdx.x] = __dadd_rn(((double*)output)[threadIdx.x], __dmul_rn(((double *)input)[i], weight[i * OUTPUT + threadIdx.x]));		\
     }																									\
-	((double*)output)[threadIdx.x] = relu(((double*)output)[threadIdx.x] + bias[threadIdx.x]);			\
+	((double*)output)[threadIdx.x] = relu(__dadd_rn(((double*)output)[threadIdx.x], bias[threadIdx.x]));			\
 }																								
 
 #define DOT_PRODUCT_BACKWARD(input,inerror,outerror,weight,wd,bd,actiongrad)	\
@@ -228,12 +228,12 @@ SOFTWARE.
 
 __device__ double relu(double x)
 {
-	return x* (double)(x > 0.0);
+	return __dmul_rn(x, (double)(x > 0.0));
 }
 
 double relugrad(double y)
 {
-	return (double)(y > 0.0);
+	return y > 0;
 }
 
 static void forward(LeNet5 *lenet, Feature *features, double(*action)(double))
@@ -346,12 +346,15 @@ __global__ void forwardKernelFirst(
 )
 {
 	CONVOLUTION_FORWARD_GPU1(((Feature*)featureArray)[blockIdx.z].input, ((Feature*)featureArray)[blockIdx.z].layer1, lenetWeight, lenetBias);
-	__syncthreads();
-	if (threadIdx.x < 14 && threadIdx.y < 14)
-    {
-		SUBSAMP_MAX_FORWARD_GPU(((Feature*)featureArray)[blockIdx.z].layer1, ((Feature*)featureArray)[blockIdx.z].layer2);
-    }
     return;
+}
+
+__global__ void forwardKernelFirstSubsamp(
+	void** featureArray
+)
+{
+	SUBSAMP_MAX_FORWARD_GPU(((Feature*)featureArray)[blockIdx.z].layer1, ((Feature*)featureArray)[blockIdx.z].layer2);
+	return;
 }
 
 __global__ void forwardKernelSecond(
@@ -361,11 +364,14 @@ __global__ void forwardKernelSecond(
 )
 {
 	CONVOLUTION_FORWARD_GPU2(((Feature*)featureArray)[blockIdx.z].layer2, ((Feature*)featureArray)[blockIdx.z].layer3, lenetWeight, lenetBias);
-	__syncthreads();
-	if (threadIdx.x < 5 && threadIdx.y < 5)
-    {
-    	SUBSAMP_MAX_FORWARD_GPU(((Feature*)featureArray)[blockIdx.z].layer3, ((Feature*)featureArray)[blockIdx.z].layer4);
-    }
+    return;
+}
+
+__global__ void forwardKernelSecondSubsamp(
+	void** featureArray
+)
+{
+	SUBSAMP_MAX_FORWARD_GPU(((Feature*)featureArray)[blockIdx.z].layer3, ((Feature*)featureArray)[blockIdx.z].layer4);
     return;
 }
 
@@ -373,22 +379,21 @@ __global__ void forwardKernelSecond(
 __global__ void forwardKernelLast(
 	double* lenetWeight,
 	double* lenetBias,
-	void** featureArray,
-	double* lenetWeightOut,
-	double* lenetBiasOut
+	void** featureArray
 )
 {
-	if (threadIdx.x == 0)
-	{
-		CONVOLUTION_FORWARD_GPU3(((Feature*)featureArray)[blockIdx.z].layer4, ((Feature*)featureArray)[blockIdx.z].layer5, lenetWeight, lenetBias);
-	}
-	
-	__syncthreads();
-	if (blockIdx.y == 0)
-	{
-		DOT_PRODUCT_FORWARD_GPU(((Feature*)featureArray)[blockIdx.z].layer5, ((Feature*)featureArray)[blockIdx.z].output, lenetWeightOut, lenetBiasOut);
-	}
+	CONVOLUTION_FORWARD_GPU3(((Feature*)featureArray)[blockIdx.z].layer4, ((Feature*)featureArray)[blockIdx.z].layer5, lenetWeight, lenetBias);
     return;
+}
+
+__global__ void forwardKernelDot(
+	double* lenetWeight,
+	double* lenetBias,
+	void** featureArray
+)
+{
+	DOT_PRODUCT_FORWARD_GPU(((Feature*)featureArray)[blockIdx.z].layer5, ((Feature*)featureArray)[blockIdx.z].output, lenetWeight, lenetBias);
+	return;
 }
 
 void TrainBatch(
@@ -403,17 +408,17 @@ void TrainBatch(
 {
 	//Set the allocated memory to 0 in the host & device.
 	//Normal lenet is NOT set to 0 as they are our input.
-	memset(featureArray, 0, sizeof(Feature) * batchSize);
+	memset(featureArray, 0.0, sizeof(Feature) * batchSize);
 
-	gpuErrchk(cudaMemset(deviceLenet, 0, sizeof(LeNet5)));
-	gpuErrchk(cudaMemset(deviceFeatureArray, 0, sizeof(Feature) * batchSize));
+	gpuErrchk(cudaMemset(deviceLenet, 0.0, sizeof(LeNet5)));
+	gpuErrchk(cudaMemset(deviceFeatureArray, 0.0, sizeof(Feature) * batchSize));
 
     //For each training image load input into feature host array.
 	for (int i = 0; i < batchSize; ++i)
 	{
 		load_input(&(featureArray[i]), inputs[i]);
     }
-
+	
 	//Copy the feature array to device.
 	gpuErrchk(cudaMemcpy(deviceFeatureArray, featureArray, sizeof(Feature) * batchSize, cudaMemcpyHostToDevice));
 	//Copy the lenet input to device.
@@ -429,31 +434,48 @@ void TrainBatch(
 		deviceLenet->bias0_1,
 		(void**)deviceFeatureArray
 	);
-	
-	//gpuErrchk(cudaMemcpy(featureArray, deviceFeatureArray, sizeof(Feature) * batchSize, cudaMemcpyDeviceToHost));
+
+	blockDims.x = 14;
+	blockDims.y = 14;
+	forwardKernelFirstSubsamp<<<gridDims, blockDims>>>(
+		(void**)deviceFeatureArray
+	);
+
 	gridDims.y = 16;
 	blockDims.x = 10;
 	blockDims.y = 10;
-	
+
 	forwardKernelSecond<<<gridDims, blockDims>>>(
 		(double*)deviceLenet->weight2_3,
 		deviceLenet->bias2_3,
 		(void**)deviceFeatureArray
 	);
-	//gpuErrchk(cudaMemcpy(featureArray, deviceFeatureArray, sizeof(Feature) * batchSize, cudaMemcpyDeviceToHost));
+
+	blockDims.x = 5;
+	blockDims.y = 5;
+	forwardKernelSecondSubsamp<<<gridDims, blockDims>>>(
+		(void**)deviceFeatureArray
+	);
+
 	gridDims.y = 120;
-	blockDims.x = 10;
+	blockDims.x = 1;
 	blockDims.y = 1;
 	//deviceOutput does not the same dimensions, have to make a separate kernel call here.
 	forwardKernelLast<<<gridDims, blockDims>>>(
 		(double*)deviceLenet->weight4_5, 
 		deviceLenet->bias4_5,
-		(void**)deviceFeatureArray,
-		(double*)deviceLenet->weight5_6,
-		deviceLenet->bias5_6
+		(void**)deviceFeatureArray
 	);
-	//gpuErrchk(cudaMemcpy(featureArray, deviceFeatureArray, sizeof(Feature) * batchSize, cudaMemcpyDeviceToHost));
-	//Copy the results back.
+
+	gridDims.y = 1;
+	blockDims.x = 10;
+	blockDims.y = 1;
+	forwardKernelDot<<<gridDims, blockDims>>>(
+		(double*)deviceLenet->weight5_6,
+		deviceLenet->bias5_6,
+		(void**)deviceFeatureArray
+	);
+	
 	gpuErrchk(cudaDeviceSynchronize());
 	//Copy output back.
 	gpuErrchk(cudaMemcpy(featureArray, deviceFeatureArray, sizeof(Feature) * batchSize, cudaMemcpyDeviceToHost));
@@ -504,10 +526,10 @@ uint8* PredictBatch(
 {
 	//Set the allocated memory to 0 in the host & device.
 	//Normal lenet is NOT set to 0 as they are our input.
-	memset(featureArray, 0, sizeof(Feature) * batchSize);
+	memset(featureArray, 0.0, sizeof(Feature) * batchSize);
 
-	gpuErrchk(cudaMemset(deviceLenet, 0, sizeof(LeNet5)));
-	gpuErrchk(cudaMemset(deviceFeatureArray, 0, sizeof(Feature) * batchSize));
+	gpuErrchk(cudaMemset(deviceLenet, 0.0, sizeof(LeNet5)));
+	gpuErrchk(cudaMemset(deviceFeatureArray, 0.0, sizeof(Feature) * batchSize));
 
     //For each training image load input into feature host array.
 	for (int i = 0; i < batchSize; ++i)
@@ -531,6 +553,12 @@ uint8* PredictBatch(
 		(void**)deviceFeatureArray
 	);
 	
+	blockDims.x = 14;
+	blockDims.y = 14;
+	forwardKernelFirstSubsamp<<<gridDims, blockDims>>>(
+		(void**)deviceFeatureArray
+	);
+
 	gridDims.y = 16;
 	blockDims.x = 10;
 	blockDims.y = 10;
@@ -541,22 +569,38 @@ uint8* PredictBatch(
 		(void**)deviceFeatureArray
 	);
 
+	blockDims.x = 5;
+	blockDims.y = 5;
+	forwardKernelSecondSubsamp<<<gridDims, blockDims>>>(
+		(void**)deviceFeatureArray
+	);
+	
 	gridDims.y = 120;
-	blockDims.x = 10;
+	blockDims.x = 1;
 	blockDims.y = 1;
 	//deviceOutput does not the same dimensions, have to make a separate kernel call here.
 	forwardKernelLast<<<gridDims, blockDims>>>(
 		(double*)deviceLenet->weight4_5, 
 		deviceLenet->bias4_5,
-		(void**)deviceFeatureArray,
+		(void**)deviceFeatureArray
+	);
+
+	gridDims.y = 1;
+	blockDims.x = 10;
+	blockDims.y = 1;
+	forwardKernelDot<<<gridDims, blockDims>>>(
 		(double*)deviceLenet->weight5_6,
-		deviceLenet->bias5_6
+		deviceLenet->bias5_6,
+		(void**)deviceFeatureArray
 	);
 	
-	//Copy the results back.
 	gpuErrchk(cudaDeviceSynchronize());
 	//Copy output back.
 	gpuErrchk(cudaMemcpy(featureArray, deviceFeatureArray, sizeof(Feature) * batchSize, cudaMemcpyDeviceToHost));
+	
+	//Copy lenet back.
+	//Not needed since lenet was not changed at all on the gpu.
+	//cudaMemcpy(lenet, deviceLenet, sizeof(LeNet5), cudaMemcpyDeviceToHost);
 
 	uint8* returnValues = (uint8*)malloc(sizeof(uint8) * batchSize);
 	for (unsigned int i = 0; i < batchSize; i++)
