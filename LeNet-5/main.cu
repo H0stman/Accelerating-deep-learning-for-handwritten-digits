@@ -79,6 +79,7 @@ void training(LeNet5 *lenet, image *train_data, uint8 *train_label, int batch_si
 	double* deviceBuffer;
 	gpuErrchk(cudaMalloc((void**)&deviceBuffer, sizeof(LeNet5)));
 	//gpuErrchk(cudaDeviceSetLimit(cudaLimitMallocHeapSize, 50000000));
+	//gpuErrchk(cudaDeviceSetLimit(cudaLimitStackSize, 250000));
 	//For every batch we train on.
 	for (int i = 0, percent = 0; i <= total_size - batch_size; i += batch_size)
 	{

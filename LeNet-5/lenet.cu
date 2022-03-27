@@ -127,7 +127,7 @@ SOFTWARE.
 		for (int y = 0; y < GETLENGTH(*weight); ++y)						\
 			CONVOLUTE_FULL(outerror[y], inerror[x], weight[x][y]);			\
 	FOREACH(i, GETCOUNT(inerror))											\
-		((double *)inerror)[i] *= relugrad(((double *)input)[i]);			\
+		((double *)inerror)[i] = __dmul_rn(((double *)inerror)[i], relugrad(((double *)input)[i]));			\
 	FOREACH(j, GETLENGTH(outerror))											\
 		FOREACH(i, GETCOUNT(outerror[j]))									\
 		bd[j] += ((double *)outerror[j])[i];								\
@@ -233,7 +233,7 @@ __device__ double relu(double x)
 
 __device__ __host__ double relugrad(double y)
 {
-	return y > 0;
+	return (double)(y > 0.0);
 }
 
 static void forward(LeNet5 *lenet, Feature *features, double(*action)(double))
@@ -410,15 +410,10 @@ __global__ void backwardKernel(
 	Feature* featureArray,
 	Feature* errors,
 	LeNet5* deltas,
-	uint8* labels,
-	double* buffer
+	uint8* labels
 )
 {
-	/*
-	if (threadIdx.x == 0)
-	{
-		printf("Test\n");
-	}*/
+	
 	uint threadLabel = labels[threadIdx.x];
 	Feature threadFeature = featureArray[threadIdx.x];
 	//Feature* threadError = (Feature*)malloc(sizeof(Feature));
@@ -430,16 +425,107 @@ __global__ void backwardKernel(
 	DOT_PRODUCT_BACKWARD(threadFeature.layer5, errors[threadIdx.x].layer5, errors[threadIdx.x].output, lenet->weight5_6, deltas[threadIdx.x].weight5_6, deltas[threadIdx.x].bias5_6);
 	CONVOLUTION_BACKWARD(threadFeature.layer4, errors[threadIdx.x].layer4, errors[threadIdx.x].layer5, lenet->weight4_5, deltas[threadIdx.x].weight4_5, deltas[threadIdx.x].bias4_5);
 	SUBSAMP_MAX_BACKWARD(threadFeature.layer3, errors[threadIdx.x].layer3, errors[threadIdx.x].layer4);
-	CONVOLUTION_BACKWARD(threadFeature.layer2, errors[threadIdx.x].layer2, errors[threadIdx.x].layer3, lenet->weight2_3, deltas[threadIdx.x].weight2_3, deltas[threadIdx.x].bias2_3);
-	SUBSAMP_MAX_BACKWARD(threadFeature.layer1, errors[threadIdx.x].layer1, errors[threadIdx.x].layer2);
-	CONVOLUTION_BACKWARD(threadFeature.input, errors[threadIdx.x].input, errors[threadIdx.x].layer1, lenet->weight0_1, deltas[threadIdx.x].weight0_1, deltas[threadIdx.x].bias0_1);
+	//CONVOLUTION_BACKWARD(threadFeature.layer2, errors[threadIdx.x].layer2, errors[threadIdx.x].layer3, lenet->weight2_3, deltas[threadIdx.x].weight2_3, deltas[threadIdx.x].bias2_3);
+	//SUBSAMP_MAX_BACKWARD(threadFeature.layer1, errors[threadIdx.x].layer1, errors[threadIdx.x].layer2);
+	//CONVOLUTION_BACKWARD(threadFeature.input, errors[threadIdx.x].input, errors[threadIdx.x].layer1, lenet->weight0_1, deltas[threadIdx.x].weight0_1, deltas[threadIdx.x].bias0_1);
 	
-	FOREACH(j, GETCOUNT(LeNet5))
-		atomicAdd(&(buffer[j]), ((double *)&(deltas[threadIdx.x]))[j]);
+	//FOREACH(j, GETCOUNT(LeNet5))
+		//atomicAdd(&(buffer[j]), ((double *)&(deltas[threadIdx.x]))[j]);
 	//errors[threadIdx.x] = threadError;
 	//deltas[threadIdx.x] = threadDelta;
 
 	//free(threadError);
+	return;
+}
+
+__global__ void backwardKernelConvolution2(
+	LeNet5* lenet,
+	Feature* featureArray,
+	Feature* errors,
+	LeNet5* deltas
+)
+{
+	//Copy from global to local memory.
+	double threadFeatureLayer2[LAYER2][LENGTH_FEATURE2][LENGTH_FEATURE2] = {0};
+	memcpy(&threadFeatureLayer2, &(featureArray[threadIdx.x].layer2), sizeof(double) * LAYER2 * LENGTH_FEATURE2 * LENGTH_FEATURE2);
+
+	double threadErrorLayer2[LAYER2][LENGTH_FEATURE2][LENGTH_FEATURE2] = {0};
+	memcpy(&threadErrorLayer2, &(errors[threadIdx.x].layer2), sizeof(double) * LAYER2 * LENGTH_FEATURE2 * LENGTH_FEATURE2);
+
+	double threadErrorLayer3[LAYER3][LENGTH_FEATURE3][LENGTH_FEATURE3] = {0};
+	memcpy(&threadErrorLayer3, &(errors[threadIdx.x].layer3), sizeof(double) * LAYER3 * LENGTH_FEATURE3 * LENGTH_FEATURE3);
+
+	CONVOLUTION_BACKWARD(threadFeatureLayer2, threadErrorLayer2, threadErrorLayer3, lenet->weight2_3, deltas[threadIdx.x].weight2_3, deltas[threadIdx.x].bias2_3);
+	
+	//Copy the results back from local to global memory.
+	memcpy(&(errors[threadIdx.x].layer2), &threadErrorLayer2, sizeof(double) * LAYER2 * LENGTH_FEATURE2 * LENGTH_FEATURE2);
+}
+
+__global__ void backwardKernelSubsamp2(
+	Feature* featureArray,
+	Feature* errors
+)
+{
+	//Copy from global to local memory.
+	/*
+	double threadFeatureLayer1[LAYER1][LENGTH_FEATURE1][LENGTH_FEATURE1];
+	memcpy(&threadFeatureLayer1, &(featureArray[threadIdx.x].layer1), sizeof(double) * LAYER1 * LENGTH_FEATURE1 * LENGTH_FEATURE1);
+
+	double threadErrorLayer1[LAYER1][LENGTH_FEATURE1][LENGTH_FEATURE1];
+	memcpy(&threadErrorLayer1, &(errors[threadIdx.x].layer1), sizeof(double) * LAYER1 * LENGTH_FEATURE1 * LENGTH_FEATURE1);
+
+	double threadErrorLayer2[LAYER2][LENGTH_FEATURE2][LENGTH_FEATURE2];
+	memcpy(&threadErrorLayer2, &(errors[threadIdx.x].layer2), sizeof(double) * LAYER2 * LENGTH_FEATURE2 * LENGTH_FEATURE2);
+	*/
+	//SUBSAMP_MAX_BACKWARD(threadFeatureLayer1, threadErrorLayer1, threadErrorLayer2);
+	SUBSAMP_MAX_BACKWARD(featureArray[threadIdx.x].layer1, errors[threadIdx.x].layer1, errors[threadIdx.x].layer2);
+	/*
+	//Copy the results back from local to global memory.
+	memcpy(&(errors[threadIdx.x].layer1), &threadErrorLayer1, sizeof(double) * LAYER1 * LENGTH_FEATURE1 * LENGTH_FEATURE1);*/
+	return;
+}
+
+__global__ void backwardKernelConvolution3(
+	LeNet5* lenet,
+	Feature* featureArray,
+	Feature* errors,
+	LeNet5* deltas
+)
+{
+	//Copy from global to local memory.
+	double threadFeatureInput[INPUT][LENGTH_FEATURE0][LENGTH_FEATURE0] = {0};
+	memcpy(&threadFeatureInput, &(featureArray[threadIdx.x].input), sizeof(double) * INPUT * LENGTH_FEATURE0 * LENGTH_FEATURE0);
+
+	double threadErrorInput[INPUT][LENGTH_FEATURE0][LENGTH_FEATURE0] = {0};
+	memcpy(&threadErrorInput, &(errors[threadIdx.x].input), sizeof(double) * INPUT * LENGTH_FEATURE0 * LENGTH_FEATURE0);
+
+	double threadErrorLayer1[LAYER1][LENGTH_FEATURE1][LENGTH_FEATURE1] = {0};
+	memcpy(&threadErrorLayer1, &(errors[threadIdx.x].layer1), sizeof(double) * LAYER1 * LENGTH_FEATURE1 * LENGTH_FEATURE1);
+
+	double threadLenetWeight[INPUT][LAYER1][LENGTH_KERNEL][LENGTH_KERNEL] = {0};
+	memcpy(&threadLenetWeight, &(lenet->weight0_1), sizeof(double) * INPUT * LAYER1 * LENGTH_KERNEL * LENGTH_KERNEL);
+
+	double threadDeltaWeight[INPUT][LAYER1][LENGTH_KERNEL][LENGTH_KERNEL] = {0};
+	memcpy(&threadDeltaWeight, &(deltas[threadIdx.x].weight0_1), sizeof(double) * INPUT * LAYER1 * LENGTH_KERNEL * LENGTH_KERNEL);
+
+	double threadDeltaBias[LAYER1] = {0};
+	memcpy(&threadDeltaBias, &(deltas[threadIdx.x].bias0_1), sizeof(double) * LAYER1);
+
+	CONVOLUTION_BACKWARD(threadFeatureInput, threadErrorInput, threadErrorLayer1, threadLenetWeight, threadDeltaWeight, threadDeltaBias);
+
+	//Copy the results back from local to global memory.
+	memcpy(&(deltas[threadIdx.x].bias0_1), &threadDeltaBias, sizeof(double) * LAYER1);
+	memcpy(&(deltas[threadIdx.x].weight0_1), &threadDeltaWeight, sizeof(double) * INPUT * LAYER1 * LENGTH_KERNEL * LENGTH_KERNEL);
+}
+
+__global__ void backwardKernelBuffer(
+	LeNet5* deltas,
+	double* buffer
+)
+{
+	FOREACH(j, GETCOUNT(LeNet5))
+		atomicAdd(&(buffer[j]), ((double *)&(deltas[threadIdx.x]))[j]);
+
 	return;
 }
 
@@ -538,15 +624,40 @@ void TrainBatch(
 	blockDims.x = batchSize;
 	blockDims.y = 1;
 	blockDims.z = 1;
+
 	backwardKernel<<<gridDims, blockDims>>>(
 		deviceLenet,
 		deviceFeatureArray,
 		deviceErrors,
 		deviceDeltas,
-		deviceLabels,
+		deviceLabels
+	);
+
+	backwardKernelConvolution2<<<gridDims, blockDims>>>(
+		deviceLenet,
+		deviceFeatureArray,
+		deviceErrors,
+		deviceDeltas
+	);
+
+	backwardKernelSubsamp2<<<gridDims, blockDims>>>(
+		deviceFeatureArray,
+		deviceErrors
+	);
+
+	backwardKernelConvolution3<<<gridDims, blockDims>>>(
+		deviceLenet,
+		deviceFeatureArray,
+		deviceErrors,
+		deviceDeltas
+	);
+
+	backwardKernelBuffer<<<gridDims, blockDims>>>(
+		deviceDeltas,
 		deviceBuffer
 	);
 	gpuErrchk(cudaDeviceSynchronize());
+
 	gpuErrchk(cudaMemcpy(buffer, deviceBuffer, sizeof(LeNet5), cudaMemcpyDeviceToHost));
 
 	double k = ALPHA / batchSize;
