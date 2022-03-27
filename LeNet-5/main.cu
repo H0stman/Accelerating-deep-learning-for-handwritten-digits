@@ -54,11 +54,8 @@ void training(LeNet5 *lenet, image *train_data, uint8 *train_label, int batch_si
 {
 	printf("Total images in training set: %d\n", total_size);
 	printf("Batchsize: %d\n", batch_size);
-
-	//Allocate the host feature array.
-	Feature* featureArray = (Feature*)malloc(sizeof(Feature) * batch_size);
-
-	Feature* errors = (Feature*)malloc(sizeof(Feature) * batch_size);
+	
+	double* buffer = (double*)malloc(sizeof(LeNet5));
 
 	//Allocate the device feature array.
 	Feature* deviceFeatureArray;
@@ -73,16 +70,21 @@ void training(LeNet5 *lenet, image *train_data, uint8 *train_label, int batch_si
 	Feature* deviceErrors;
 	gpuErrchk(cudaMalloc((void**)&deviceErrors, sizeof(Feature) * batch_size));
 
+	LeNet5* deviceDeltas;
+	gpuErrchk(cudaMalloc((void**)&deviceDeltas, sizeof(LeNet5) * batch_size));
+
 	uint8* deviceLabels;
 	gpuErrchk(cudaMalloc((void**)&deviceLabels, sizeof(uint8) * batch_size));
 
+	double* deviceBuffer;
+	gpuErrchk(cudaMalloc((void**)&deviceBuffer, sizeof(LeNet5)));
+	gpuErrchk(cudaDeviceSetLimit(cudaLimitMallocHeapSize, 50000000));
 	//For every batch we train on.
 	for (int i = 0, percent = 0; i <= total_size - batch_size; i += batch_size)
 	{
 		printf("\nTraining on images: %d-%d\t", i, i + batch_size);
 		TrainBatch(
 			lenet,
-			featureArray,
 			&(train_data[i]),
 			deviceInputs,
 			&(train_label[i]),
@@ -90,8 +92,10 @@ void training(LeNet5 *lenet, image *train_data, uint8 *train_label, int batch_si
 			batch_size,
 			deviceLenet,
 			deviceFeatureArray,
-			errors,
-			deviceErrors
+			deviceErrors,
+			deviceDeltas,
+			buffer,
+			deviceBuffer
 		);
 		if (i * 100 / total_size > percent)
 			printf("Training %2d%% complete", percent = i * 100 / total_size);
@@ -101,9 +105,11 @@ void training(LeNet5 *lenet, image *train_data, uint8 *train_label, int batch_si
 	gpuErrchk(cudaFree(deviceFeatureArray));
 	gpuErrchk(cudaFree(deviceInputs));
 	gpuErrchk(cudaFree(deviceErrors));
+	gpuErrchk(cudaFree(deviceDeltas));
 	gpuErrchk(cudaFree(deviceLabels));
-	free(errors);
-	free(featureArray);
+	gpuErrchk(cudaFree(deviceBuffer));
+
+	free(buffer);
 
 	printf("\n");
 }

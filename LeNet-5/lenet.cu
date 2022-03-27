@@ -231,7 +231,7 @@ __device__ double relu(double x)
 	return __dmul_rn(x, (double)(x > 0.0));
 }
 
-double relugrad(double y)
+__device__ __host__ double relugrad(double y)
 {
 	return y > 0;
 }
@@ -343,7 +343,11 @@ __global__ void forwardKernelLoadInput(
 	image* inputs
 )
 {
-	load_input(&(featureArray[threadIdx.x]), inputs[threadIdx.x]);
+	Feature threadFeature = {0};
+	image threadImage = {0};
+	memcpy(&threadImage, &(inputs[threadIdx.x]), sizeof(image));
+	load_input(&(threadFeature), threadImage);
+	featureArray[threadIdx.x] = threadFeature;
 	return;
 }
 
@@ -400,20 +404,47 @@ __global__ void forwardKernelDot(
 	return;
 }
 
-//Backward stuff
-__global__ void backwardKernelLoadTarget(
+//Backward kernel functions.
+__global__ void backwardKernel(
+	LeNet5* lenet,
 	Feature* featureArray,
 	Feature* errors,
-	uint8* labels
+	LeNet5* deltas,
+	uint8* labels,
+	double* buffer
 )
 {
-	load_target(&(featureArray[threadIdx.x]), &(errors[threadIdx.x]), labels[threadIdx.x]);
+	/*
+	if (threadIdx.x == 0)
+	{
+		printf("Test\n");
+	}*/
+	uint threadLabel = labels[threadIdx.x];
+	Feature threadFeature = featureArray[threadIdx.x];
+	//Feature* threadError = (Feature*)malloc(sizeof(Feature));
+	//memset(threadError, 0.0, sizeof(Feature));
+	//LeNet5 threadDelta = {0};
+	
+	load_target(&(threadFeature), &(errors[threadIdx.x]), threadLabel);
+
+	DOT_PRODUCT_BACKWARD(threadFeature.layer5, errors[threadIdx.x].layer5, errors[threadIdx.x].output, lenet->weight5_6, deltas[threadIdx.x].weight5_6, deltas[threadIdx.x].bias5_6);
+	CONVOLUTION_BACKWARD(threadFeature.layer4, errors[threadIdx.x].layer4, errors[threadIdx.x].layer5, lenet->weight4_5, deltas[threadIdx.x].weight4_5, deltas[threadIdx.x].bias4_5);
+	SUBSAMP_MAX_BACKWARD(threadFeature.layer3, errors[threadIdx.x].layer3, errors[threadIdx.x].layer4);
+	CONVOLUTION_BACKWARD(threadFeature.layer2, errors[threadIdx.x].layer2, errors[threadIdx.x].layer3, lenet->weight2_3, deltas[threadIdx.x].weight2_3, deltas[threadIdx.x].bias2_3);
+	SUBSAMP_MAX_BACKWARD(threadFeature.layer1, errors[threadIdx.x].layer1, errors[threadIdx.x].layer2);
+	CONVOLUTION_BACKWARD(threadFeature.input, errors[threadIdx.x].input, errors[threadIdx.x].layer1, lenet->weight0_1, deltas[threadIdx.x].weight0_1, deltas[threadIdx.x].bias0_1);
+	
+	FOREACH(j, GETCOUNT(LeNet5))
+		atomicAdd(&(buffer[j]), ((double *)&(deltas[threadIdx.x]))[j]);
+	//errors[threadIdx.x] = threadError;
+	//deltas[threadIdx.x] = threadDelta;
+
+	//free(threadError);
 	return;
 }
 
 void TrainBatch(
 	LeNet5* lenet,
-	Feature* featureArray,
 	image* inputs,
 	image* deviceInputs,
 	uint8* labels,
@@ -421,33 +452,25 @@ void TrainBatch(
 	int batchSize,
 	LeNet5* deviceLenet,
 	Feature* deviceFeatureArray,
-	Feature* errors,
-	Feature* deviceErrors
-	
+	Feature* deviceErrors,
+	LeNet5* deviceDeltas,
+	double* buffer,
+	double* deviceBuffer
 )
 {
-	//Set the allocated memory to 0 in the host & device.
-	//Normal lenet is NOT set to 0 as they are our input.
-	memset(featureArray, 0.0, sizeof(Feature) * batchSize);
-	memset(errors, 0.0, sizeof(Feature) * batchSize);
+	memset(buffer, 0.0, sizeof(LeNet5));
 
 	gpuErrchk(cudaMemset(deviceLenet, 0.0, sizeof(LeNet5)));
 	gpuErrchk(cudaMemset(deviceFeatureArray, 0.0, sizeof(Feature) * batchSize));
 	gpuErrchk(cudaMemset(deviceInputs, 0.0, sizeof(image) * batchSize));
 	gpuErrchk(cudaMemset(deviceErrors, 0.0, sizeof(Feature) * batchSize));
+	gpuErrchk(cudaMemset(deviceDeltas, 0.0, sizeof(LeNet5) * batchSize));
 	gpuErrchk(cudaMemset(deviceLabels, 0.0, sizeof(uint8) * batchSize));
+	gpuErrchk(cudaMemset(deviceBuffer, 0.0, sizeof(LeNet5)));
 
-    //For each training image load input into feature host array.
-	//for (int i = 0; i < batchSize; ++i)
-	//{
-		//load_input(&(featureArray[i]), inputs[i]);
-    //}
-	gpuErrchk(cudaMemcpy(deviceInputs, inputs, sizeof(image) * batchSize, cudaMemcpyHostToDevice));
-	//Copy the feature array to device.
-	//gpuErrchk(cudaMemcpy(deviceFeatureArray, featureArray, sizeof(Feature) * batchSize, cudaMemcpyHostToDevice));
-	//Copy the lenet input to device.
-    gpuErrchk(cudaMemcpy(deviceLenet, lenet, sizeof(LeNet5), cudaMemcpyHostToDevice));
     
+	gpuErrchk(cudaMemcpy(deviceInputs, inputs, sizeof(image) * batchSize, cudaMemcpyHostToDevice));
+    gpuErrchk(cudaMemcpy(deviceLenet, lenet, sizeof(LeNet5), cudaMemcpyHostToDevice));
 	gpuErrchk(cudaMemcpy(deviceLabels, labels, sizeof(uint8) * batchSize, cudaMemcpyHostToDevice));
 
 	dim3 gridDims(1, 1, 1);
@@ -508,45 +531,24 @@ void TrainBatch(
 		(void**)deviceFeatureArray
 	);
 	
-	gpuErrchk(cudaDeviceSynchronize());
-	//Copy output back.
-	//gpuErrchk(cudaMemcpy(featureArray, deviceFeatureArray, sizeof(Feature) * batchSize, cudaMemcpyDeviceToHost));
-	
-	//Copy lenet back.
-	//Not needed since lenet was not changed at all on the gpu.
-	//cudaMemcpy(lenet, deviceLenet, sizeof(LeNet5), cudaMemcpyDeviceToHost);
-
-	//Sequential backward propagation.
-	double buffer[GETCOUNT(LeNet5)] = { 0 };
-	int z = 0;
-
+	//Sequential backward propagation on the GPU.
 	gridDims.x = 1;
 	gridDims.y = 1;
 	gridDims.z = 1;
 	blockDims.x = batchSize;
 	blockDims.y = 1;
 	blockDims.z = 1;
-	backwardKernelLoadTarget<<<gridDims, blockDims>>>(
+	backwardKernel<<<gridDims, blockDims>>>(
+		deviceLenet,
 		deviceFeatureArray,
 		deviceErrors,
-		deviceLabels
+		deviceDeltas,
+		deviceLabels,
+		deviceBuffer
 	);
 	gpuErrchk(cudaDeviceSynchronize());
-	gpuErrchk(cudaMemcpy(errors, deviceErrors, sizeof(Feature) * batchSize, cudaMemcpyDeviceToHost));
-	gpuErrchk(cudaMemcpy(featureArray, deviceFeatureArray, sizeof(Feature) * batchSize, cudaMemcpyDeviceToHost));
-    for (z = 0; z < batchSize; ++z)
-    {
-        LeNet5	deltas = { 0 };
-		//load_target(&(featureArray[z]), &(errors[z]), labels[z]);
-		DOT_PRODUCT_BACKWARD(featureArray[z].layer5, errors[z].layer5, errors[z].output, lenet->weight5_6, deltas.weight5_6, deltas.bias5_6);
-		CONVOLUTION_BACKWARD(featureArray[z].layer4, errors[z].layer4, errors[z].layer5, lenet->weight4_5, deltas.weight4_5, deltas.bias4_5);
-		SUBSAMP_MAX_BACKWARD(featureArray[z].layer3, errors[z].layer3, errors[z].layer4);
-		CONVOLUTION_BACKWARD(featureArray[z].layer2, errors[z].layer2, errors[z].layer3, lenet->weight2_3, deltas.weight2_3, deltas.bias2_3);
-		SUBSAMP_MAX_BACKWARD(featureArray[z].layer1, errors[z].layer1, errors[z].layer2);
-		CONVOLUTION_BACKWARD(featureArray[z].input, errors[z].input, errors[z].layer1, lenet->weight0_1, deltas.weight0_1, deltas.bias0_1);
-		FOREACH(j, GETCOUNT(LeNet5))
-			buffer[j] += ((double *)&deltas)[j];
-	}
+	gpuErrchk(cudaMemcpy(buffer, deviceBuffer, sizeof(LeNet5), cudaMemcpyDeviceToHost));
+
 	double k = ALPHA / batchSize;
 	FOREACH(g, GETCOUNT(LeNet5))
 		((double *)lenet)[g] += k * buffer[g];
