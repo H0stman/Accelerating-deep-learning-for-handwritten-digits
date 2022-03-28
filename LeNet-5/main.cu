@@ -226,9 +226,9 @@ int main()
 	{
 		training(lenet, train_data, train_label, batches[i], COUNT_TRAIN);
 	}
-	printf("Calculating training accuracy...\n");
-	int training_right = testing(lenet, train_data, train_label, COUNT_TRAIN);
-	printf("Training accuracy: %f%%\n", training_right * 100.0 / COUNT_TRAIN);
+	//printf("Calculating training accuracy...\n");
+	//int training_right = testing(lenet, train_data, train_label, COUNT_TRAIN);
+	//printf("Training accuracy: %f%%\n", training_right * 100.0 / COUNT_TRAIN);
 
 	printf("Calculating test accuracy...\n");
 	int right = testing(lenet, test_data, test_label, COUNT_TEST);
